@@ -21,6 +21,13 @@ const templateList = document.getElementById('templateList');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+  // 检查依赖库是否加载
+  if (typeof marked === 'undefined') {
+    preview.innerHTML =
+      '<p style="color: #f14c4c;">错误：marked.js 库未加载，请检查网络连接</p>';
+    return;
+  }
+
   initMermaid();
   initMarked();
   loadFromUrl();
@@ -84,7 +91,6 @@ function encodeData(markdown) {
     // 3. URL 安全编码
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   } catch (e) {
-    console.error('编码失败:', e);
     return null;
   }
 }
@@ -100,7 +106,6 @@ function decodeData(encoded) {
     // 3. LZString 解压
     return LZString.decompressFromUTF16(compressed);
   } catch (e) {
-    console.error('解码失败:', e);
     return null;
   }
 }
@@ -199,29 +204,53 @@ function updatePreview() {
     saveToLocalStorage();
 
     // 渲染 Markdown
-    const html = marked.parse(markdown);
+    let html;
+    try {
+      html = marked.parse(markdown);
+    } catch (e) {
+      html = `<p style="color: #f14c4c;">Markdown 解析失败：${e.message}</p>`;
+    }
     preview.innerHTML = html;
 
     // 渲染 Mermaid 图表
     const mermaidElements = preview.querySelectorAll('.mermaid');
     if (mermaidElements.length > 0) {
       mermaidElements.forEach((element) => {
+        const code = element.textContent.trim();
+        const id =
+          'mermaid-' +
+          Date.now() +
+          '-' +
+          Math.random().toString(36).substr(2, 9);
+
         mermaid
-          .render('mermaid-' + Date.now() + Math.random(), element.textContent)
+          .render(id, code)
           .then((result) => {
-            element.innerHTML = result.svg;
+            // mermaid.render 返回 { svg: string }
+            if (typeof result === 'string') {
+              element.innerHTML = result;
+            } else if (result && typeof result === 'object') {
+              if (result.svg) {
+                element.innerHTML = result.svg;
+              } else {
+                element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：无法解析结果</pre>`;
+              }
+            } else {
+              element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：未知错误</pre>`;
+            }
           })
           .catch((err) => {
-            console.error('Mermaid 渲染失败:', err);
-            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message}</pre>`;
+            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
           });
       });
     }
 
     // 代码高亮
-    preview.querySelectorAll('pre code').forEach((block) => {
-      hljs.highlightElement(block);
-    });
+    if (typeof hljs !== 'undefined') {
+      preview.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+    }
   }, 50);
 }
 
