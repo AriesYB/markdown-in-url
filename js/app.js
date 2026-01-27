@@ -13,7 +13,6 @@ const loadTemplateBtn = document.getElementById('loadTemplate');
 const clearBtn = document.getElementById('clearBtn');
 const shareLinkBtn = document.getElementById('shareLink');
 const exportHtmlBtn = document.getElementById('exportHtml');
-const exportPdfBtn = document.getElementById('exportPdf');
 const toast = document.getElementById('toast');
 const templateModal = document.getElementById('templateModal');
 const closeModalBtn = document.getElementById('closeModal');
@@ -258,58 +257,33 @@ function updateCharCount(markdown) {
   const baseUrl = `${window.location.origin}${window.location.pathname}?data=`;
   const urlLength = encoded ? baseUrl.length + encoded.length : 0;
 
-  // 不同浏览器的URL限制（保守值）
+  // 不同浏览器的URL限制（单位：字符）
   const urlLimits = {
-    chrome: 2083,
+    chrome: 8182,
     firefox: 65536,
     safari: 80000,
-    edge: 2083,
+    edge: 8182,
   };
 
-  // 检查是否超过限制
-  let warningHtml = '';
+  // 构建浏览器状态显示
+  let browserHtml = '';
   if (encoded) {
-    const browsers = [];
+    const browsers = [
+      { name: 'Chrome/Edge', limit: urlLimits.chrome },
+      { name: 'Firefox', limit: urlLimits.firefox },
+      { name: 'Safari', limit: urlLimits.safari },
+    ];
 
-    // 检查每个浏览器
-    if (urlLength > urlLimits.chrome) {
-      browsers.push(`Chrome/Edge(${urlLength}/${urlLimits.chrome})`);
-    }
-    if (urlLength > urlLimits.firefox) {
-      browsers.push(`Firefox(${urlLength}/${urlLimits.firefox})`);
-    }
-    if (urlLength > urlLimits.safari) {
-      browsers.push(`Safari(${urlLength}/${urlLimits.safari})`);
-    }
+    const browserStatus = browsers.map((browser) => {
+      const isOverLimit = urlLength > browser.limit;
+      const colorClass = isOverLimit ? 'url-over-limit' : 'url-ok';
+      return `<span class="${colorClass}">${browser.name}(${urlLength}/${browser.limit})</span>`;
+    });
 
-    if (browsers.length > 0) {
-      // 有浏览器超限，显示所有浏览器的限制
-      const allBrowsers = [
-        `Chrome/Edge(${urlLength}/${urlLimits.chrome})`,
-        `Firefox(${urlLength}/${urlLimits.firefox})`,
-        `Safari(${urlLength}/${urlLimits.safari})`,
-      ];
-      warningHtml = `<span class="url-warning">⚠️ 超限: ${allBrowsers.join(', ')}</span>`;
-    } else {
-      // 检查是否接近限制
-      const approachBrowsers = [];
-      if (urlLength > urlLimits.chrome * 0.8) {
-        approachBrowsers.push(`Chrome/Edge(${urlLength}/${urlLimits.chrome})`);
-      }
-      if (urlLength > urlLimits.firefox * 0.8) {
-        approachBrowsers.push(`Firefox(${urlLength}/${urlLimits.firefox})`);
-      }
-      if (urlLength > urlLimits.safari * 0.8) {
-        approachBrowsers.push(`Safari(${urlLength}/${urlLimits.safari})`);
-      }
-
-      if (approachBrowsers.length > 0) {
-        warningHtml = `<span class="url-warning url-warning-approach">⚠️ 接近: ${approachBrowsers.join(', ')}</span>`;
-      }
-    }
+    browserHtml = ` | ${browserStatus.join(' ')}`;
   }
 
-  charCount.innerHTML = `${count} 字符 | URL: ${urlLength} 字符${warningHtml ? ' | ' + warningHtml : ''}`;
+  charCount.innerHTML = `${count} 字符 | URL: ${urlLength} 字符${browserHtml}`;
 }
 
 // 更新行号
@@ -417,11 +391,6 @@ ${marked.parse(markdown)}
   URL.revokeObjectURL(url);
 
   showToast('HTML 文件已导出');
-}
-
-// 导出 PDF
-function exportPdf() {
-  window.print();
 }
 
 // 显示 Toast 提示
@@ -576,9 +545,6 @@ function bindEvents() {
 
   // 导出 HTML
   exportHtmlBtn.addEventListener('click', exportHtml);
-
-  // 导出 PDF
-  exportPdfBtn.addEventListener('click', exportPdf);
 
   // 关闭模态框
   closeModalBtn.addEventListener('click', () => {

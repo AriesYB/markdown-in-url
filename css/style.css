@@ -127,6 +127,17 @@ body {
   background-color: rgba(204, 167, 0, 0.1);
 }
 
+/* 浏览器 URL 限制状态样式 */
+.url-over-limit {
+  color: var(--error-color);
+  font-weight: 500;
+}
+
+.url-ok {
+  color: var(--success-color);
+  font-weight: 500;
+}
+
 /* Editor Wrapper */
 .editor-wrapper {
   display: flex;
