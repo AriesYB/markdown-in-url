@@ -18,8 +18,8 @@
 
 直接访问部署地址即可使用：
 
-- GitHub Pages: `https://ariesyb.github.io/markdown-preview/`
-- Gitee Pages: `https://ariesyb.gitee.io/markdown-preview/`
+- GitHub Pages: `https://ariesyb.github.io/markdown-in-url/`
+- Gitee Pages: `https://ariesyb.gitee.io/markdown-in-url/`
 
 ## 本地运行
 
@@ -74,7 +74,7 @@ A[开始] --> B[结束]
 ### 参数格式
 
 ```
-https://ariesyb.github.io/markdown-preview/?data=<compressed_base64_data>
+https://ariesyb.github.io/markdown-in-url/?data=<compressed_base64_data>
 ```
 
 ### 数据编码
@@ -119,7 +119,7 @@ git commit -m "Initial commit"
 git branch -M main
 
 # 添加远程仓库
-git remote add origin https://github.com/AriesYB/markdown-preview.git
+git remote add origin https://github.com/AriesYB/markdown-in-url.git
 
 # 推送代码
 git push -u origin main
@@ -136,7 +136,7 @@ git push -u origin main
 
 ```bash
 # 添加 Gitee 远程仓库
-git remote add gitee https://gitee.com/AriesYB/markdown-preview.git
+git remote add gitee https://gitee.com/AriesYB/markdown-in-url.git
 
 # 推送到 Gitee
 git push gitee main
@@ -156,7 +156,7 @@ javascript: (function () {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
     window.open(
-      `https://ariesyb.github.io/markdown-preview/?data=${encoded}`,
+      `https://ariesyb.github.io/markdown-in-url/?data=${encoded}`,
       '_blank',
     );
   }
@@ -182,7 +182,7 @@ javascript: (function () {
 ## 项目结构
 
 ```
-markdown-preview/
+markdown-in-url/
 ├── index.html          # 主页面
 ├── css/
 │   └── style.css       # 样式文件

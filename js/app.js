@@ -1,6 +1,7 @@
 // 全局变量
 let currentUrl = '';
 let debounceTimer;
+let isSyncingScroll = false;
 
 // DOM 元素
 const editor = document.getElementById('editor');
@@ -221,7 +222,7 @@ function updatePreview() {
     preview.querySelectorAll('pre code').forEach((block) => {
       hljs.highlightElement(block);
     });
-  }, 300);
+  }, 50);
 }
 
 // 更新字符统计
@@ -438,6 +439,34 @@ function clearContent() {
 function bindEvents() {
   // 编辑器输入事件
   editor.addEventListener('input', updatePreview);
+
+  // 编辑器滚动同步到预览区
+  editor.addEventListener('scroll', () => {
+    if (!isSyncingScroll) {
+      isSyncingScroll = true;
+      const scrollPercentage =
+        editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+      preview.scrollTop =
+        scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+      setTimeout(() => {
+        isSyncingScroll = false;
+      }, 50);
+    }
+  });
+
+  // 预览区滚动同步到编辑器
+  preview.addEventListener('scroll', () => {
+    if (!isSyncingScroll) {
+      isSyncingScroll = true;
+      const scrollPercentage =
+        preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+      editor.scrollTop =
+        scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+      setTimeout(() => {
+        isSyncingScroll = false;
+      }, 50);
+    }
+  });
 
   // 快捷键
   editor.addEventListener('keydown', (e) => {
