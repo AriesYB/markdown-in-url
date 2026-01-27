@@ -6,12 +6,12 @@ let isSyncingScroll = false;
 // DOM 元素
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
+const lineNumbers = document.getElementById('lineNumbers');
 const charCount = document.getElementById('charCount');
 const themeToggle = document.getElementById('themeToggle');
 const loadTemplateBtn = document.getElementById('loadTemplate');
 const clearBtn = document.getElementById('clearBtn');
-const generateLinkBtn = document.getElementById('generateLink');
-const copyLinkBtn = document.getElementById('copyLink');
+const shareLinkBtn = document.getElementById('shareLink');
 const exportHtmlBtn = document.getElementById('exportHtml');
 const exportPdfBtn = document.getElementById('exportPdf');
 const toast = document.getElementById('toast');
@@ -81,30 +81,22 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// 数据编码：压缩 + Base64 + URL 安全编码
+// 数据编码：使用 LZString 专为 URL 优化的压缩方法
 function encodeData(markdown) {
   try {
-    // 1. LZString 压缩
-    const compressed = LZString.compressToUTF16(markdown);
-    // 2. Base64 编码
-    const base64 = btoa(unescape(encodeURIComponent(compressed)));
-    // 3. URL 安全编码
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // 直接使用 LZString 的 URL 优化压缩方法
+    // 这个方法内部已经处理了 URL 安全编码，无需额外 Base64
+    return LZString.compressToEncodedURIComponent(markdown);
   } catch (e) {
     return null;
   }
 }
 
-// 数据解码：URL 安全解码 + Base64 解码 + 解压
+// 数据解码：使用 LZString 的 URL 优化解压方法
 function decodeData(encoded) {
   try {
-    // 1. URL 安全解码
-    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) base64 += '=';
-    // 2. Base64 解码
-    const compressed = decodeURIComponent(escape(atob(base64)));
-    // 3. LZString 解压
-    return LZString.decompressFromUTF16(compressed);
+    // 直接使用 LZString 的 URL 优化解压方法
+    return LZString.decompressFromEncodedURIComponent(encoded);
   } catch (e) {
     return null;
   }
@@ -200,6 +192,9 @@ function updatePreview() {
     // 更新字符统计
     updateCharCount(markdown);
 
+    // 更新行号
+    updateLineNumbers(markdown);
+
     // 保存到本地存储
     saveToLocalStorage();
 
@@ -257,11 +252,78 @@ function updatePreview() {
 // 更新字符统计
 function updateCharCount(markdown) {
   const count = markdown.length;
-  charCount.textContent = `${count} 字符`;
+
+  // 计算压缩后的URL长度
+  const encoded = encodeData(markdown);
+  const baseUrl = `${window.location.origin}${window.location.pathname}?data=`;
+  const urlLength = encoded ? baseUrl.length + encoded.length : 0;
+
+  // 不同浏览器的URL限制（保守值）
+  const urlLimits = {
+    chrome: 2083,
+    firefox: 65536,
+    safari: 80000,
+    edge: 2083,
+  };
+
+  // 检查是否超过限制
+  let warningHtml = '';
+  if (encoded) {
+    const browsers = [];
+
+    // 检查每个浏览器
+    if (urlLength > urlLimits.chrome) {
+      browsers.push(`Chrome/Edge(${urlLength}/${urlLimits.chrome})`);
+    }
+    if (urlLength > urlLimits.firefox) {
+      browsers.push(`Firefox(${urlLength}/${urlLimits.firefox})`);
+    }
+    if (urlLength > urlLimits.safari) {
+      browsers.push(`Safari(${urlLength}/${urlLimits.safari})`);
+    }
+
+    if (browsers.length > 0) {
+      // 有浏览器超限，显示所有浏览器的限制
+      const allBrowsers = [
+        `Chrome/Edge(${urlLength}/${urlLimits.chrome})`,
+        `Firefox(${urlLength}/${urlLimits.firefox})`,
+        `Safari(${urlLength}/${urlLimits.safari})`,
+      ];
+      warningHtml = `<span class="url-warning">⚠️ 超限: ${allBrowsers.join(', ')}</span>`;
+    } else {
+      // 检查是否接近限制
+      const approachBrowsers = [];
+      if (urlLength > urlLimits.chrome * 0.8) {
+        approachBrowsers.push(`Chrome/Edge(${urlLength}/${urlLimits.chrome})`);
+      }
+      if (urlLength > urlLimits.firefox * 0.8) {
+        approachBrowsers.push(`Firefox(${urlLength}/${urlLimits.firefox})`);
+      }
+      if (urlLength > urlLimits.safari * 0.8) {
+        approachBrowsers.push(`Safari(${urlLength}/${urlLimits.safari})`);
+      }
+
+      if (approachBrowsers.length > 0) {
+        warningHtml = `<span class="url-warning url-warning-approach">⚠️ 接近: ${approachBrowsers.join(', ')}</span>`;
+      }
+    }
+  }
+
+  charCount.innerHTML = `${count} 字符 | URL: ${urlLength} 字符${warningHtml ? ' | ' + warningHtml : ''}`;
 }
 
-// 生成分享链接
-function generateShareUrl() {
+// 更新行号
+function updateLineNumbers(markdown) {
+  const lines = markdown.split('\n').length;
+  let html = '';
+  for (let i = 1; i <= lines; i++) {
+    html += `<span class="line-number">${i}</span>`;
+  }
+  lineNumbers.innerHTML = html;
+}
+
+// 生成并复制分享链接
+function shareLink() {
   const markdown = editor.value.trim();
   if (!markdown) {
     showToast('请先输入 Markdown 内容', 'error');
@@ -275,31 +337,17 @@ function generateShareUrl() {
   }
 
   const url = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
-  currentUrl = url;
 
   // 检查 URL 长度
   if (url.length > 8000) {
     showToast('警告：链接较长，某些浏览器可能无法正常访问', 'error');
-  } else {
-    showToast('分享链接已生成！');
   }
 
-  return url;
-}
-
-// 复制链接
-function copyLink() {
-  let url = currentUrl;
-
-  if (!url) {
-    url = generateShareUrl();
-    if (!url) return;
-  }
-
+  // 复制到剪贴板
   navigator.clipboard
     .writeText(url)
     .then(() => {
-      showToast('链接已复制到剪贴板！');
+      showToast('分享链接已复制到剪贴板！');
     })
     .catch(() => {
       // 降级方案
@@ -469,7 +517,7 @@ function bindEvents() {
   // 编辑器输入事件
   editor.addEventListener('input', updatePreview);
 
-  // 编辑器滚动同步到预览区
+  // 编辑器滚动同步到预览区和行号
   editor.addEventListener('scroll', () => {
     if (!isSyncingScroll) {
       isSyncingScroll = true;
@@ -477,6 +525,8 @@ function bindEvents() {
         editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
       preview.scrollTop =
         scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+      // 同步行号滚动
+      lineNumbers.scrollTop = editor.scrollTop;
       setTimeout(() => {
         isSyncingScroll = false;
       }, 50);
@@ -521,11 +571,8 @@ function bindEvents() {
   // 清空内容
   clearBtn.addEventListener('click', clearContent);
 
-  // 生成分享链接
-  generateLinkBtn.addEventListener('click', generateShareUrl);
-
-  // 复制链接
-  copyLinkBtn.addEventListener('click', copyLink);
+  // 分享链接
+  shareLinkBtn.addEventListener('click', shareLink);
 
   // 导出 HTML
   exportHtmlBtn.addEventListener('click', exportHtml);

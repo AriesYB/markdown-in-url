@@ -108,6 +108,58 @@ body {
 .char-count {
   font-size: 12px;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.url-warning {
+  font-size: 11px;
+  color: var(--error-color);
+  background-color: rgba(241, 76, 76, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: help;
+}
+
+.url-warning-approach {
+  color: var(--warning-color);
+  background-color: rgba(204, 167, 0, 0.1);
+}
+
+/* Editor Wrapper */
+.editor-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Line Numbers */
+.line-numbers {
+  width: 50px;
+  padding: 16px 8px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border-color);
+}
+
+/* 隐藏行号滚动条 */
+.line-numbers::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.line-number {
+  display: block;
+  min-height: 1.6em;
 }
 
 /* Editor */
@@ -123,6 +175,7 @@ body {
   font-size: 14px;
   line-height: 1.6;
   outline: none;
+  tab-size: 4;
 }
 
 .editor::placeholder {
@@ -256,50 +309,57 @@ body {
   border-radius: 6px;
 }
 
-/* Action Bar */
-.action-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  background-color: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
-  justify-content: center;
-}
+/* Action Bar - 已移除，按钮移到 Header */
 
 /* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 8px 14px;
   border: none;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .btn-primary {
-  background-color: var(--accent-color);
+  background: linear-gradient(135deg, var(--accent-color), #0066cc);
   color: white;
+  box-shadow: 0 2px 8px rgba(0, 122, 204, 0.3);
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-hover);
+  background: linear-gradient(135deg, var(--accent-hover), #0055aa);
+  box-shadow: 0 4px 12px rgba(0, 122, 204, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover {
   background-color: var(--border-color);
+  border-color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
 }
 
 .btn .icon {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 /* Footer */
@@ -318,23 +378,26 @@ body {
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 80px;
+  bottom: 40px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(20px);
   background-color: var(--success-color);
   color: white;
-  padding: 12px 24px;
-  border-radius: 4px;
+  padding: 12px 28px;
+  border-radius: 8px;
   font-size: 14px;
+  font-weight: 500;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .toast.show {
   opacity: 1;
   visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .toast.error {
@@ -361,13 +424,14 @@ body {
 
 .modal-content {
   background-color: var(--bg-secondary);
-  border-radius: 8px;
+  border-radius: 12px;
   width: 90%;
   max-width: 600px;
   max-height: 80vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .modal-header {
@@ -417,14 +481,16 @@ body {
   padding: 16px;
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .template-item:hover {
   border-color: var(--accent-color);
   background-color: var(--bg-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .template-item h3 {
@@ -449,24 +515,34 @@ body {
     border-bottom: 1px solid var(--border-color);
   }
 
-  .action-bar {
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    flex: 1;
-    min-width: 120px;
-    justify-content: center;
-  }
-
   .header {
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   .header-right {
     width: 100%;
     justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 100px;
+    justify-content: center;
+  }
+
+  .editor-wrapper {
+    flex-direction: column;
+  }
+
+  .line-numbers {
+    width: 100%;
+    text-align: left;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 16px;
+    display: none;
   }
 }
 

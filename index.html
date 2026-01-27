@@ -46,6 +46,19 @@
           <button class="btn btn-secondary" id="clearBtn" title="清空内容">
             <span class="icon">🗑️</span> 清空
           </button>
+          <button class="btn btn-secondary" id="exportHtml" title="导出 HTML">
+            <span class="icon">📄</span> 导出 HTML
+          </button>
+          <button class="btn btn-secondary" id="exportPdf" title="导出 PDF">
+            <span class="icon">🖨️</span> 导出 PDF
+          </button>
+          <button
+            class="btn btn-primary"
+            id="shareLink"
+            title="生成并复制分享链接"
+          >
+            <span class="icon">🔗</span> 分享链接
+          </button>
         </div>
       </header>
 
@@ -57,12 +70,15 @@
             <span class="panel-title">编辑器</span>
             <span class="char-count" id="charCount">0 字符</span>
           </div>
-          <textarea
-            id="editor"
-            class="editor"
-            placeholder="在此输入 Markdown 内容..."
-            spellcheck="false"
-          ></textarea>
+          <div class="editor-wrapper">
+            <div class="line-numbers" id="lineNumbers"></div>
+            <textarea
+              id="editor"
+              class="editor"
+              placeholder="在此输入 Markdown 内容..."
+              spellcheck="false"
+            ></textarea>
+          </div>
         </div>
 
         <!-- Preview -->
@@ -73,22 +89,6 @@
           <div id="preview" class="preview"></div>
         </div>
       </main>
-
-      <!-- Action Bar -->
-      <div class="action-bar">
-        <button class="btn btn-primary" id="generateLink">
-          <span class="icon">🔗</span> 生成分享链接
-        </button>
-        <button class="btn btn-secondary" id="copyLink">
-          <span class="icon">📋</span> 复制链接
-        </button>
-        <button class="btn btn-secondary" id="exportHtml">
-          <span class="icon">📄</span> 导出 HTML
-        </button>
-        <button class="btn btn-secondary" id="exportPdf">
-          <span class="icon">🖨️</span> 导出 PDF
-        </button>
-      </div>
 
       <!-- Footer -->
       <footer class="footer">
