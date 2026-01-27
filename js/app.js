@@ -1,0 +1,492 @@
+// 全局变量
+let currentUrl = '';
+let debounceTimer;
+
+// DOM 元素
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const charCount = document.getElementById('charCount');
+const themeToggle = document.getElementById('themeToggle');
+const loadTemplateBtn = document.getElementById('loadTemplate');
+const clearBtn = document.getElementById('clearBtn');
+const generateLinkBtn = document.getElementById('generateLink');
+const copyLinkBtn = document.getElementById('copyLink');
+const exportHtmlBtn = document.getElementById('exportHtml');
+const exportPdfBtn = document.getElementById('exportPdf');
+const toast = document.getElementById('toast');
+const templateModal = document.getElementById('templateModal');
+const closeModalBtn = document.getElementById('closeModal');
+const templateList = document.getElementById('templateList');
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+  initMermaid();
+  initMarked();
+  loadFromUrl();
+  loadFromLocalStorage();
+  bindEvents();
+  updatePreview();
+});
+
+// 初始化 Mermaid
+function initMermaid() {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    securityLevel: 'loose',
+    themeVariables: {
+      darkMode: true,
+      background: '#252526',
+      primaryColor: '#007acc',
+      primaryTextColor: '#d4d4d4',
+      primaryBorderColor: '#3e3e42',
+      lineColor: '#858585',
+      secondaryColor: '#2d2d30',
+      tertiaryColor: '#1e1e1e',
+    },
+  });
+}
+
+// 初始化 Marked
+function initMarked() {
+  const renderer = new marked.Renderer();
+
+  // 自定义代码块渲染器
+  renderer.code = function (code, language) {
+    if (language === 'mermaid') {
+      return `<div class="mermaid">${code}</div>`;
+    }
+    return `<pre><code class="language-${language || 'plaintext'}">${escapeHtml(code)}</code></pre>`;
+  };
+
+  marked.setOptions({
+    renderer: renderer,
+    breaks: true,
+    gfm: true,
+  });
+}
+
+// HTML 转义
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 数据编码：压缩 + Base64 + URL 安全编码
+function encodeData(markdown) {
+  try {
+    // 1. LZString 压缩
+    const compressed = LZString.compressToUTF16(markdown);
+    // 2. Base64 编码
+    const base64 = btoa(unescape(encodeURIComponent(compressed)));
+    // 3. URL 安全编码
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch (e) {
+    console.error('编码失败:', e);
+    return null;
+  }
+}
+
+// 数据解码：URL 安全解码 + Base64 解码 + 解压
+function decodeData(encoded) {
+  try {
+    // 1. URL 安全解码
+    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    // 2. Base64 解码
+    const compressed = decodeURIComponent(escape(atob(base64)));
+    // 3. LZString 解压
+    return LZString.decompressFromUTF16(compressed);
+  } catch (e) {
+    console.error('解码失败:', e);
+    return null;
+  }
+}
+
+// 从 URL 加载内容
+function loadFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const data = params.get('data');
+
+  if (data) {
+    const markdown = decodeData(data);
+    if (markdown) {
+      editor.value = markdown;
+      showToast('已从 URL 加载内容');
+    } else {
+      showToast('解码失败，请检查链接', 'error');
+    }
+  } else {
+    // 显示默认欢迎内容
+    editor.value = `# 欢迎使用 Markdown 在线预览
+
+这是一个支持 **Mermaid 图表** 的 Markdown 在线编辑器。
+
+## 功能特点
+
+- 📝 在线编辑 Markdown
+- 👁️ 实时预览渲染结果
+- 🔗 生成分享链接
+- 🎨 支持 Mermaid 图表
+- 💻 代码语法高亮
+- 🌙 深色/浅色主题
+
+## Mermaid 图表示例
+
+### 流程图
+
+\`\`\`mermaid
+graph TD
+    A[开始] --> B{判断条件}
+    B -->|是| C[执行操作A]
+    B -->|否| D[执行操作B]
+    C --> E[结束]
+    D --> E
+\`\`\`
+
+### 时序图
+
+\`\`\`mermaid
+sequenceDiagram
+    participant 用户
+    participant 系统
+    participant 数据库
+    
+    用户->>系统: 发起请求
+    系统->>数据库: 查询数据
+    数据库-->>系统: 返回结果
+    系统-->>用户: 响应结果
+\`\`\`
+
+## 开始使用
+
+1. 在左侧编辑器输入 Markdown 内容
+2. 右侧实时预览渲染结果
+3. 点击"生成分享链接"按钮
+4. 分享链接给他人，打开即可查看
+
+---
+点击右上角的 **模板** 按钮可以加载更多示例！
+`;
+  }
+}
+
+// 从本地存储加载
+function loadFromLocalStorage() {
+  const saved = localStorage.getItem('markdown-preview-content');
+  if (saved && !editor.value) {
+    editor.value = saved;
+  }
+}
+
+// 保存到本地存储
+function saveToLocalStorage() {
+  localStorage.setItem('markdown-preview-content', editor.value);
+}
+
+// 更新预览
+function updatePreview() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    const markdown = editor.value;
+
+    // 更新字符统计
+    updateCharCount(markdown);
+
+    // 保存到本地存储
+    saveToLocalStorage();
+
+    // 渲染 Markdown
+    const html = marked.parse(markdown);
+    preview.innerHTML = html;
+
+    // 渲染 Mermaid 图表
+    const mermaidElements = preview.querySelectorAll('.mermaid');
+    if (mermaidElements.length > 0) {
+      mermaidElements.forEach((element) => {
+        mermaid
+          .render('mermaid-' + Date.now() + Math.random(), element.textContent)
+          .then((result) => {
+            element.innerHTML = result.svg;
+          })
+          .catch((err) => {
+            console.error('Mermaid 渲染失败:', err);
+            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message}</pre>`;
+          });
+      });
+    }
+
+    // 代码高亮
+    preview.querySelectorAll('pre code').forEach((block) => {
+      hljs.highlightElement(block);
+    });
+  }, 300);
+}
+
+// 更新字符统计
+function updateCharCount(markdown) {
+  const count = markdown.length;
+  charCount.textContent = `${count} 字符`;
+}
+
+// 生成分享链接
+function generateShareUrl() {
+  const markdown = editor.value.trim();
+  if (!markdown) {
+    showToast('请先输入 Markdown 内容', 'error');
+    return;
+  }
+
+  const encoded = encodeData(markdown);
+  if (!encoded) {
+    showToast('编码失败，内容可能过大', 'error');
+    return;
+  }
+
+  const url = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
+  currentUrl = url;
+
+  // 检查 URL 长度
+  if (url.length > 8000) {
+    showToast('警告：链接较长，某些浏览器可能无法正常访问', 'error');
+  } else {
+    showToast('分享链接已生成！');
+  }
+
+  return url;
+}
+
+// 复制链接
+function copyLink() {
+  let url = currentUrl;
+
+  if (!url) {
+    url = generateShareUrl();
+    if (!url) return;
+  }
+
+  navigator.clipboard
+    .writeText(url)
+    .then(() => {
+      showToast('链接已复制到剪贴板！');
+    })
+    .catch(() => {
+      // 降级方案
+      prompt('请复制以下链接：', url);
+    });
+}
+
+// 导出 HTML
+function exportHtml() {
+  const markdown = editor.value.trim();
+  if (!markdown) {
+    showToast('没有可导出的内容', 'error');
+    return;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 导出</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+        }
+        blockquote {
+            border-left: 4px solid #007acc;
+            padding-left: 16px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+${marked.parse(markdown)}
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'markdown-export.html';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showToast('HTML 文件已导出');
+}
+
+// 导出 PDF
+function exportPdf() {
+  window.print();
+}
+
+// 显示 Toast 提示
+function showToast(message, type = 'success') {
+  toast.textContent = message;
+  toast.className = 'toast show';
+  if (type === 'error') {
+    toast.classList.add('error');
+  }
+
+  setTimeout(() => {
+    toast.className = 'toast';
+  }, 3000);
+}
+
+// 切换主题
+function toggleTheme() {
+  document.body.classList.toggle('light-theme');
+  const isLight = document.body.classList.contains('light-theme');
+
+  // 更新 Mermaid 主题
+  mermaid.initialize({
+    theme: isLight ? 'default' : 'dark',
+    themeVariables: {
+      darkMode: !isLight,
+      background: isLight ? '#ffffff' : '#252526',
+      primaryColor: '#007acc',
+      primaryTextColor: isLight ? '#333333' : '#d4d4d4',
+      primaryBorderColor: isLight ? '#d4d4d4' : '#3e3e42',
+      lineColor: isLight ? '#666666' : '#858585',
+      secondaryColor: isLight ? '#f3f3f3' : '#2d2d30',
+      tertiaryColor: isLight ? '#e8e8e8' : '#1e1e1e',
+    },
+  });
+
+  // 重新渲染预览
+  updatePreview();
+
+  // 保存主题偏好
+  localStorage.setItem('markdown-preview-theme', isLight ? 'light' : 'dark');
+
+  // 更新按钮图标
+  themeToggle.querySelector('.icon').textContent = isLight ? '☀️' : '🌙';
+}
+
+// 加载主题
+function loadTheme() {
+  const savedTheme = localStorage.getItem('markdown-preview-theme');
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+    themeToggle.querySelector('.icon').textContent = '☀️';
+  }
+}
+
+// 显示模板选择器
+function showTemplateModal() {
+  templateList.innerHTML = '';
+
+  templates.forEach((template, index) => {
+    const item = document.createElement('div');
+    item.className = 'template-item';
+    item.innerHTML = `
+            <h3>${template.name}</h3>
+            <p>${template.description}</p>
+        `;
+    item.addEventListener('click', () => loadTemplate(index));
+    templateList.appendChild(item);
+  });
+
+  templateModal.classList.add('show');
+}
+
+// 加载模板
+function loadTemplate(index) {
+  const template = templates[index];
+  editor.value = template.content;
+  updatePreview();
+  templateModal.classList.remove('show');
+  showToast(`已加载模板：${template.name}`);
+}
+
+// 清空内容
+function clearContent() {
+  if (confirm('确定要清空所有内容吗？')) {
+    editor.value = '';
+    updatePreview();
+    showToast('内容已清空');
+  }
+}
+
+// 绑定事件
+function bindEvents() {
+  // 编辑器输入事件
+  editor.addEventListener('input', updatePreview);
+
+  // 快捷键
+  editor.addEventListener('keydown', (e) => {
+    // Ctrl+S 保存到本地
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      saveToLocalStorage();
+      showToast('已保存到本地');
+    }
+    // Ctrl+Enter 刷新预览
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      updatePreview();
+    }
+  });
+
+  // 主题切换
+  themeToggle.addEventListener('click', toggleTheme);
+
+  // 加载模板
+  loadTemplateBtn.addEventListener('click', showTemplateModal);
+
+  // 清空内容
+  clearBtn.addEventListener('click', clearContent);
+
+  // 生成分享链接
+  generateLinkBtn.addEventListener('click', generateShareUrl);
+
+  // 复制链接
+  copyLinkBtn.addEventListener('click', copyLink);
+
+  // 导出 HTML
+  exportHtmlBtn.addEventListener('click', exportHtml);
+
+  // 导出 PDF
+  exportPdfBtn.addEventListener('click', exportPdf);
+
+  // 关闭模态框
+  closeModalBtn.addEventListener('click', () => {
+    templateModal.classList.remove('show');
+  });
+
+  // 点击模态框外部关闭
+  templateModal.addEventListener('click', (e) => {
+    if (e.target === templateModal) {
+      templateModal.classList.remove('show');
+    }
+  });
+
+  // 加载保存的主题
+  loadTheme();
+}
