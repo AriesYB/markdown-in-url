@@ -90,6 +90,16 @@ body {
   border-right: 1px solid var(--border-color);
 }
 
+/* 预览模式样式 */
+body.preview-mode .editor-container {
+  display: none;
+}
+
+body.preview-mode .preview-container {
+  flex: 1;
+  width: 100%;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;

@@ -3,6 +3,7 @@ let currentUrl = '';
 let debounceTimer;
 let charCountDebounceTimer;
 let isSyncingScroll = false;
+let isPreviewMode = true;
 
 // DOM 元素
 const editor = document.getElementById('editor');
@@ -10,6 +11,8 @@ const preview = document.getElementById('preview');
 const lineNumbers = document.getElementById('lineNumbers');
 const charCount = document.getElementById('charCount');
 const themeToggle = document.getElementById('themeToggle');
+const modeToggle = document.getElementById('modeToggle');
+const modeText = document.getElementById('modeText');
 const loadTemplateBtn = document.getElementById('loadTemplate');
 const clearBtn = document.getElementById('clearBtn');
 const shareLinkBtn = document.getElementById('shareLink');
@@ -425,6 +428,55 @@ function showToast(message, type = 'success') {
   }, 3000);
 }
 
+// 切换模式
+function toggleMode() {
+  isPreviewMode = !isPreviewMode;
+  document.body.classList.toggle('preview-mode', isPreviewMode);
+
+  // 更新按钮文本和图标
+  if (isPreviewMode) {
+    modeText.textContent = '编辑';
+    modeToggle.querySelector('.icon').textContent = '✏️';
+  } else {
+    modeText.textContent = '预览';
+    modeToggle.querySelector('.icon').textContent = '👁️';
+  }
+
+  // 保存模式偏好
+  localStorage.setItem(
+    'markdown-preview-mode',
+    isPreviewMode ? 'preview' : 'edit',
+  );
+}
+
+// 加载模式
+function loadMode() {
+  const params = new URLSearchParams(window.location.search);
+  const hasData = params.get('data');
+
+  const savedMode = localStorage.getItem('markdown-preview-mode');
+
+  // 从链接进入时，默认预览模式
+  if (hasData) {
+    isPreviewMode = true;
+    document.body.classList.add('preview-mode');
+    modeText.textContent = '编辑';
+    modeToggle.querySelector('.icon').textContent = '✏️';
+  } else if (savedMode === 'preview') {
+    // 非链接进入，但保存了预览模式
+    isPreviewMode = true;
+    document.body.classList.add('preview-mode');
+    modeText.textContent = '编辑';
+    modeToggle.querySelector('.icon').textContent = '✏️';
+  } else {
+    // 默认编辑模式
+    isPreviewMode = false;
+    document.body.classList.remove('preview-mode');
+    modeText.textContent = '预览';
+    modeToggle.querySelector('.icon').textContent = '👁️';
+  }
+}
+
 // 切换主题
 function toggleTheme() {
   document.body.classList.toggle('light-theme');
@@ -451,8 +503,8 @@ function toggleTheme() {
   // 保存主题偏好
   localStorage.setItem('markdown-preview-theme', isLight ? 'light' : 'dark');
 
-  // 更新按钮图标
-  themeToggle.querySelector('.icon').textContent = isLight ? '☀️' : '🌙';
+  // 更新按钮图标（显示将要切换到的主题）
+  themeToggle.querySelector('.icon').textContent = isLight ? '🌙' : '☀️';
 }
 
 // 加载主题
@@ -460,7 +512,7 @@ function loadTheme() {
   const savedTheme = localStorage.getItem('markdown-preview-theme');
   if (savedTheme === 'light') {
     document.body.classList.add('light-theme');
-    themeToggle.querySelector('.icon').textContent = '☀️';
+    themeToggle.querySelector('.icon').textContent = '🌙';
   }
 }
 
@@ -577,6 +629,12 @@ function bindEvents() {
     }
   });
 
+  // 模式切换
+  modeToggle.addEventListener('click', toggleMode);
+
   // 加载保存的主题
   loadTheme();
+
+  // 加载保存的模式
+  loadMode();
 }
