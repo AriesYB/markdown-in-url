@@ -6,9 +6,7 @@
 
 ## 在线使用
 
-直接访问部署地址即可使用：
-
-- GitHub Pages: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
+- GitHub Pages，安全免费: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
 
 ## 核心特点
 

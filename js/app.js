@@ -5,6 +5,18 @@ let charCountDebounceTimer;
 let isSyncingScroll = false;
 let isPreviewMode = true;
 
+// 自动补全相关变量
+let autocompleteVisible = false;
+let autocompleteItems = [];
+let activeAutocompleteIndex = -1;
+let autocompleteTrigger = '';
+
+// 撤销/重做相关变量
+let undoStack = [];
+let redoStack = [];
+let maxHistorySize = 50;
+let isUndoRedoOperation = false;
+
 // DOM 元素
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
@@ -21,6 +33,7 @@ const toast = document.getElementById('toast');
 const templateModal = document.getElementById('templateModal');
 const closeModalBtn = document.getElementById('closeModal');
 const templateList = document.getElementById('templateList');
+const autocomplete = document.getElementById('autocomplete');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -37,6 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadFromLocalStorage();
   bindEvents();
   updatePreview();
+
+  // 保存初始状态到撤销栈
+  saveToUndoStack();
 });
 
 // 初始化 Mermaid
@@ -555,7 +571,13 @@ function clearContent() {
 // 绑定事件
 function bindEvents() {
   // 编辑器输入事件
-  editor.addEventListener('input', updatePreview);
+  editor.addEventListener('input', (e) => {
+    // 如果不是撤销/重做操作，保存到撤销栈
+    if (!isUndoRedoOperation) {
+      saveToUndoStack();
+    }
+    updatePreview(e);
+  });
 
   // 编辑器滚动同步到预览区和行号
   editor.addEventListener('scroll', () => {
@@ -589,6 +611,19 @@ function bindEvents() {
 
   // 快捷键
   editor.addEventListener('keydown', (e) => {
+    // Ctrl+Z 撤销
+    if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    }
+    // Ctrl+Y 或 Ctrl+Shift+Z 重做
+    if (
+      (e.ctrlKey && e.key === 'y') ||
+      (e.ctrlKey && e.shiftKey && e.key === 'Z')
+    ) {
+      e.preventDefault();
+      redo();
+    }
     // Ctrl+S 保存到本地
     if (e.ctrlKey && e.key === 's') {
       e.preventDefault();
@@ -637,4 +672,543 @@ function bindEvents() {
 
   // 加载保存的模式
   loadMode();
+
+  // 初始化自动补全
+  initAutocomplete();
+}
+
+// ==================== 自动补全功能 ====================
+
+// Markdown 语法补全数据
+const markdownSuggestions = {
+  // 代码块触发器
+  '```': {
+    group: '代码块',
+    items: [
+      {
+        icon: '📝',
+        title: 'JavaScript',
+        desc: 'JavaScript 代码块',
+        insert: 'javascript\n// 在此输入代码\n```',
+      },
+      {
+        icon: '🐍',
+        title: 'Python',
+        desc: 'Python 代码块',
+        insert: 'python\n# 在此输入代码\n```',
+      },
+      {
+        icon: '🌐',
+        title: 'HTML',
+        desc: 'HTML 代码块',
+        insert: 'html\n<!-- 在此输入代码 -->\n```',
+      },
+      {
+        icon: '🎨',
+        title: 'CSS',
+        desc: 'CSS 代码块',
+        insert: 'css\n/* 在此输入代码 */\n```',
+      },
+      {
+        icon: '☕',
+        title: 'Java',
+        desc: 'Java 代码块',
+        insert: 'java\n// 在此输入代码\n```',
+      },
+      {
+        icon: '🔷',
+        title: 'TypeScript',
+        desc: 'TypeScript 代码块',
+        insert: 'typescript\n// 在此输入代码\n```',
+      },
+      {
+        icon: '📊',
+        title: 'Mermaid',
+        desc: 'Mermaid 图表',
+        insert: 'mermaid\ngraph TD\n    A[开始] --> B[结束]\n```',
+      },
+      {
+        icon: '📄',
+        title: 'JSON',
+        desc: 'JSON 数据',
+        insert: 'json\n{\n  "key": "value"\n}\n```',
+      },
+      {
+        icon: '🔧',
+        title: 'Bash',
+        desc: 'Bash 脚本',
+        insert: 'bash\n# 在此输入命令\n```',
+      },
+      {
+        icon: '📋',
+        title: 'Markdown',
+        desc: 'Markdown 代码块',
+        insert: 'markdown\n# 在此输入 Markdown\n```',
+      },
+      {
+        icon: '🔤',
+        title: '纯文本',
+        desc: '纯文本代码块',
+        insert: 'text\n在此输入文本\n```',
+      },
+      {
+        icon: '📊',
+        title: 'SQL',
+        desc: 'SQL 查询',
+        insert: 'sql\nSELECT * FROM table;\n```',
+      },
+    ],
+  },
+  // 标题触发器
+  '#': {
+    group: '标题',
+    items: [
+      { icon: 'H1', title: '一级标题', desc: '# 标题', insert: '# ' },
+      { icon: 'H2', title: '二级标题', desc: '## 标题', insert: '## ' },
+      { icon: 'H3', title: '三级标题', desc: '### 标题', insert: '### ' },
+      { icon: 'H4', title: '四级标题', desc: '#### 标题', insert: '#### ' },
+      { icon: 'H5', title: '五级标题', desc: '##### 标题', insert: '##### ' },
+      { icon: 'H6', title: '六级标题', desc: '###### 标题', insert: '###### ' },
+    ],
+  },
+  // 列表触发器
+  '-': {
+    group: '列表',
+    items: [
+      { icon: '•', title: '无序列表', desc: '- 项目', insert: '- ' },
+      { icon: '1.', title: '有序列表', desc: '1. 项目', insert: '1. ' },
+      { icon: '✓', title: '任务列表', desc: '- [ ] 任务', insert: '- [ ] ' },
+      { icon: '✓', title: '已完成任务', desc: '- [x] 任务', insert: '- [x] ' },
+    ],
+  },
+  // 文本格式触发器
+  '*': {
+    group: '文本格式',
+    items: [
+      { icon: 'B', title: '粗体', desc: '**粗体**', insert: '**粗体**' },
+      { icon: 'I', title: '斜体', desc: '*斜体*', insert: '*斜体*' },
+      { icon: 'S', title: '删除线', desc: '~~删除线~~', insert: '~~删除线~~' },
+      { icon: 'C', title: '行内代码', desc: '`代码`', insert: '`代码`' },
+      { icon: 'H', title: '高亮', desc: '==高亮==', insert: '==高亮==' },
+    ],
+  },
+  // 引用触发器
+  '>': {
+    group: '引用',
+    items: [
+      { icon: '❝', title: '引用', desc: '> 引用内容', insert: '> ' },
+      { icon: '❝❝', title: '嵌套引用', desc: '> > 嵌套引用', insert: '> > ' },
+    ],
+  },
+  // 链接和图片触发器
+  '[': {
+    group: '链接与图片',
+    items: [
+      { icon: '🔗', title: '链接', desc: '[文本](url)', insert: '[文本](url)' },
+      { icon: '🖼️', title: '图片', desc: '![alt](url)', insert: '![alt](url)' },
+      {
+        icon: '📎',
+        title: '引用链接',
+        desc: '[文本][ref]',
+        insert: '[文本][ref]',
+      },
+    ],
+  },
+  // 表格触发器
+  '|': {
+    group: '表格',
+    items: [
+      {
+        icon: '📊',
+        title: '表格',
+        desc: 'Markdown 表格',
+        insert:
+          '| 列1 | 列2 | 列3 |\n|-----|-----|-----|\n| 内容 | 内容 | 内容 |',
+      },
+    ],
+  },
+  // 分隔线触发器
+  '-': {
+    group: '分隔线',
+    items: [
+      { icon: '—', title: '分隔线', desc: '---', insert: '---' },
+      { icon: '***', title: '分隔线', desc: '***', insert: '***' },
+    ],
+  },
+  // 其他触发器
+  '!': {
+    group: '其他',
+    items: [
+      { icon: '🖼️', title: '图片', desc: '![alt](url)', insert: '![alt](url)' },
+    ],
+  },
+};
+
+// 初始化自动补全
+function initAutocomplete() {
+  // 监听输入事件
+  editor.addEventListener('input', handleEditorInput);
+
+  // 监听键盘事件
+  editor.addEventListener('keydown', handleEditorKeydown);
+
+  // 监听点击事件，点击外部关闭补全
+  document.addEventListener('click', (e) => {
+    if (
+      autocompleteVisible &&
+      !autocomplete.contains(e.target) &&
+      e.target !== editor
+    ) {
+      hideAutocomplete();
+    }
+  });
+}
+
+// 处理编辑器输入
+function handleEditorInput(e) {
+  const cursorPosition = editor.selectionStart;
+  const textBeforeCursor = editor.value.substring(0, cursorPosition);
+
+  // 检查是否触发补全
+  const trigger = checkAutocompleteTrigger(textBeforeCursor);
+
+  if (trigger) {
+    autocompleteTrigger = trigger;
+    showAutocomplete(trigger, cursorPosition);
+  } else {
+    hideAutocomplete();
+  }
+}
+
+// 检查是否触发补全
+function checkAutocompleteTrigger(text) {
+  // 检查代码块触发器 ```
+  if (text.endsWith('```')) {
+    return '```';
+  }
+
+  // 检查标题触发器 #
+  const hashMatch = text.match(/(^|\n)#{1,6}$/);
+  if (hashMatch) {
+    return '#';
+  }
+
+  // 检查列表触发器 - 或 *
+  const listMatch = text.match(/(^|\n)[\-\*]$/);
+  if (listMatch) {
+    return '-';
+  }
+
+  // 检查数字列表触发器
+  const numListMatch = text.match(/(^|\n)\d+\.$/);
+  if (numListMatch) {
+    return '-';
+  }
+
+  // 检查文本格式触发器 * 或 _
+  const formatMatch = text.match(/(^|\s)[\*_]{1,2}$/);
+  if (formatMatch) {
+    return '*';
+  }
+
+  // 检查引用触发器 >
+  const quoteMatch = text.match(/(^|\n)>$/);
+  if (quoteMatch) {
+    return '>';
+  }
+
+  // 检查链接触发器 [
+  if (text.endsWith('[')) {
+    return '[';
+  }
+
+  // 检查表格触发器 |
+  if (text.endsWith('|')) {
+    return '|';
+  }
+
+  // 检查图片触发器 !
+  if (text.endsWith('!')) {
+    return '!';
+  }
+
+  return null;
+}
+
+// 显示自动补全
+function showAutocomplete(trigger, cursorPosition) {
+  const suggestions = markdownSuggestions[trigger];
+  if (!suggestions || !suggestions.items || suggestions.items.length === 0) {
+    hideAutocomplete();
+    return;
+  }
+
+  autocompleteItems = suggestions.items;
+  activeAutocompleteIndex = -1;
+
+  // 构建补全列表HTML
+  let html = `<div class="autocomplete-group">${suggestions.group}</div>`;
+
+  autocompleteItems.forEach((item, index) => {
+    html += `
+      <div class="autocomplete-item" data-index="${index}">
+        <span class="autocomplete-item-icon">${item.icon}</span>
+        <div class="autocomplete-item-content">
+          <div class="autocomplete-item-title">${item.title}</div>
+          <div class="autocomplete-item-desc">${item.desc}</div>
+        </div>
+        <span class="autocomplete-item-preview">${escapeHtml(item.insert.substring(0, 20))}${item.insert.length > 20 ? '...' : ''}</span>
+      </div>
+    `;
+  });
+
+  autocomplete.innerHTML = html;
+
+  // 计算位置
+  const position = getCursorPositionPosition(cursorPosition);
+  autocomplete.style.top = `${position.top + 20}px`;
+  autocomplete.style.left = `${position.left}px`;
+
+  // 显示补全框
+  autocomplete.classList.remove('hidden');
+  autocompleteVisible = true;
+
+  // 绑定点击事件
+  autocomplete.querySelectorAll('.autocomplete-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const index = parseInt(item.dataset.index);
+      insertAutocompleteItem(index);
+    });
+  });
+}
+
+// 隐藏自动补全
+function hideAutocomplete() {
+  autocomplete.classList.add('hidden');
+  autocompleteVisible = false;
+  autocompleteItems = [];
+  activeAutocompleteIndex = -1;
+}
+
+// 获取光标在编辑器中的像素位置
+function getCursorPositionPosition(cursorPosition) {
+  const textBeforeCursor = editor.value.substring(0, cursorPosition);
+  const lines = textBeforeCursor.split('\n');
+  const currentLine = lines.length - 1;
+  const currentColumn = lines[lines.length - 1].length;
+
+  // 计算行高和字符宽度
+  const lineHeight = 20.8; // 1.6 * 13px
+  const charWidth = 7.8; // 近似值
+
+  const top = currentLine * lineHeight - editor.scrollTop;
+  const left = currentColumn * charWidth + 68; // 68px 是行号宽度 + padding
+
+  return { top, left };
+}
+
+// 处理键盘事件
+function handleEditorKeydown(e) {
+  if (!autocompleteVisible) {
+    return;
+  }
+
+  // 上下箭头选择
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    activeAutocompleteIndex = Math.min(
+      activeAutocompleteIndex + 1,
+      autocompleteItems.length - 1,
+    );
+    updateActiveAutocompleteItem();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    activeAutocompleteIndex = Math.max(activeAutocompleteIndex - 1, 0);
+    updateActiveAutocompleteItem();
+  } else if (e.key === 'Enter') {
+    // 回车确认选择
+    e.preventDefault();
+    if (activeAutocompleteIndex >= 0) {
+      insertAutocompleteItem(activeAutocompleteIndex);
+    } else {
+      hideAutocomplete();
+    }
+  } else if (e.key === 'Escape') {
+    // ESC 关闭补全
+    e.preventDefault();
+    hideAutocomplete();
+  } else if (e.key === 'Tab') {
+    // Tab 确认选择
+    e.preventDefault();
+    if (activeAutocompleteIndex >= 0) {
+      insertAutocompleteItem(activeAutocompleteIndex);
+    } else {
+      insertAutocompleteItem(0);
+    }
+  }
+}
+
+// 更新激活的补全项
+function updateActiveAutocompleteItem() {
+  const items = autocomplete.querySelectorAll('.autocomplete-item');
+  items.forEach((item, index) => {
+    if (index === activeAutocompleteIndex) {
+      item.classList.add('active');
+      item.scrollIntoView({ block: 'nearest' });
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+// 插入补全项
+function insertAutocompleteItem(index) {
+  const item = autocompleteItems[index];
+  if (!item) return;
+
+  const cursorPosition = editor.selectionStart;
+  const textBeforeCursor = editor.value.substring(0, cursorPosition);
+  const textAfterCursor = editor.value.substring(cursorPosition);
+
+  // 计算需要删除的触发器长度
+  let triggerLength = 0;
+  let keepTrigger = false;
+
+  if (autocompleteTrigger === '```') {
+    // 代码块：保留反引号，只插入语言类型
+    triggerLength = 0;
+    keepTrigger = true;
+  } else if (autocompleteTrigger === '#') {
+    const hashMatch = textBeforeCursor.match(/#{1,6}$/);
+    triggerLength = hashMatch ? hashMatch[0].length : 1;
+  } else if (autocompleteTrigger === '-') {
+    const listMatch = textBeforeCursor.match(/[\-\*]$/);
+    triggerLength = listMatch ? 1 : 0;
+  } else if (autocompleteTrigger === '*') {
+    const formatMatch = textBeforeCursor.match(/[\*_]{1,2}$/);
+    triggerLength = formatMatch ? formatMatch[0].length : 1;
+  } else if (autocompleteTrigger === '>') {
+    triggerLength = 1;
+  } else if (autocompleteTrigger === '[') {
+    triggerLength = 1;
+  } else if (autocompleteTrigger === '|') {
+    triggerLength = 1;
+  } else if (autocompleteTrigger === '!') {
+    triggerLength = 1;
+  }
+
+  // 删除触发器并插入补全内容
+  let newText;
+  if (keepTrigger) {
+    // 保留触发器，只插入内容
+    newText = textBeforeCursor + item.insert + textAfterCursor;
+  } else {
+    newText =
+      textBeforeCursor.substring(0, textBeforeCursor.length - triggerLength) +
+      item.insert +
+      textAfterCursor;
+  }
+  editor.value = newText;
+
+  // 设置新的光标位置
+  const newCursorPosition =
+    textBeforeCursor.length - triggerLength + item.insert.length;
+  editor.setSelectionRange(newCursorPosition, newCursorPosition);
+
+  // 隐藏补全框
+  hideAutocomplete();
+
+  // 更新预览
+  updatePreview();
+
+  // 聚焦编辑器
+  editor.focus();
+}
+
+// ==================== 撤销/重做功能 ====================
+
+// 保存到撤销栈
+function saveToUndoStack() {
+  const currentState = {
+    value: editor.value,
+    selectionStart: editor.selectionStart,
+    selectionEnd: editor.selectionEnd,
+  };
+
+  // 避免重复保存相同状态
+  if (undoStack.length > 0) {
+    const lastState = undoStack[undoStack.length - 1];
+    if (
+      lastState.value === currentState.value &&
+      lastState.selectionStart === currentState.selectionStart &&
+      lastState.selectionEnd === currentState.selectionEnd
+    ) {
+      return;
+    }
+  }
+
+  undoStack.push(currentState);
+
+  // 限制栈大小
+  if (undoStack.length > maxHistorySize) {
+    undoStack.shift();
+  }
+
+  // 清空重做栈
+  redoStack = [];
+}
+
+// 撤销
+function undo() {
+  if (undoStack.length <= 1) {
+    showToast('没有可撤销的操作', 'error');
+    return;
+  }
+
+  // 保存当前状态到重做栈
+  const currentState = {
+    value: editor.value,
+    selectionStart: editor.selectionStart,
+    selectionEnd: editor.selectionEnd,
+  };
+  redoStack.push(currentState);
+
+  // 弹出当前状态
+  undoStack.pop();
+
+  // 恢复上一个状态
+  const previousState = undoStack[undoStack.length - 1];
+  isUndoRedoOperation = true;
+  editor.value = previousState.value;
+  editor.setSelectionRange(
+    previousState.selectionStart,
+    previousState.selectionEnd,
+  );
+  isUndoRedoOperation = false;
+
+  updatePreview();
+  showToast('已撤销');
+}
+
+// 重做
+function redo() {
+  if (redoStack.length === 0) {
+    showToast('没有可重做的操作', 'error');
+    return;
+  }
+
+  // 弹出重做栈顶的状态
+  const nextState = redoStack.pop();
+
+  // 保存到撤销栈
+  undoStack.push(nextState);
+
+  // 恢复状态
+  isUndoRedoOperation = true;
+  editor.value = nextState.value;
+  editor.setSelectionRange(nextState.selectionStart, nextState.selectionEnd);
+  isUndoRedoOperation = false;
+
+  updatePreview();
+  showToast('已重做');
 }
