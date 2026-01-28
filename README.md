@@ -8,8 +8,8 @@
 
 直接访问部署地址即可使用：
 
-- GitHub Pages: `https://ariesyb.github.io/markdown-in-url/`
-- Gitee Pages: `https://ariesyb.gitee.io/markdown-in-url/`
+- GitHub Pages: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
+- Gitee Pages: [https://ariesyb.gitee.io/markdown-in-url/](https://ariesyb.gitee.io/markdown-in-url/)
 
 ## 核心特点
 
@@ -96,4 +96,8 @@ markdown-in-url/
 
 ## 许可证
 
-MIT License
+本项目采用 [MIT License](LICENSE) 开源协议。
+
+Copyright (c) 2025 AriesYB
+
+详情请查看 [LICENSE](LICENSE) 文件。

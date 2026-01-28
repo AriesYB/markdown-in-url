@@ -1,6 +1,7 @@
 // 全局变量
 let currentUrl = '';
 let debounceTimer;
+let charCountDebounceTimer;
 let isSyncingScroll = false;
 
 // DOM 元素
@@ -188,64 +189,70 @@ function updatePreview() {
   debounceTimer = setTimeout(() => {
     const markdown = editor.value;
 
-    // 更新字符统计
+    // 更新字符统计（使用轻量级估算）
     updateCharCount(markdown);
 
     // 更新行号
     updateLineNumbers(markdown);
 
-    // 保存到本地存储
-    saveToLocalStorage();
+    // 保存到本地存储（使用防抖）
+    clearTimeout(charCountDebounceTimer);
+    charCountDebounceTimer = setTimeout(saveToLocalStorage, 1000);
 
-    // 渲染 Markdown
-    let html;
-    try {
-      html = marked.parse(markdown);
-    } catch (e) {
-      html = `<p style="color: #f14c4c;">Markdown 解析失败：${e.message}</p>`;
-    }
-    preview.innerHTML = html;
+    // 使用 requestAnimationFrame 优化渲染
+    requestAnimationFrame(() => {
+      // 渲染 Markdown
+      let html;
+      try {
+        html = marked.parse(markdown);
+      } catch (e) {
+        html = `<p style="color: #f14c4c;">Markdown 解析失败：${e.message}</p>`;
+      }
+      preview.innerHTML = html;
 
-    // 渲染 Mermaid 图表
-    const mermaidElements = preview.querySelectorAll('.mermaid');
-    if (mermaidElements.length > 0) {
-      mermaidElements.forEach((element) => {
-        const code = element.textContent.trim();
-        const id =
-          'mermaid-' +
-          Date.now() +
-          '-' +
-          Math.random().toString(36).substr(2, 9);
+      // 渲染 Mermaid 图表（延迟执行，避免阻塞）
+      setTimeout(() => {
+        const mermaidElements = preview.querySelectorAll('.mermaid');
+        if (mermaidElements.length > 0) {
+          mermaidElements.forEach((element) => {
+            const code = element.textContent.trim();
+            const id =
+              'mermaid-' +
+              Date.now() +
+              '-' +
+              Math.random().toString(36).substr(2, 9);
 
-        mermaid
-          .render(id, code)
-          .then((result) => {
-            // mermaid.render 返回 { svg: string }
-            if (typeof result === 'string') {
-              element.innerHTML = result;
-            } else if (result && typeof result === 'object') {
-              if (result.svg) {
-                element.innerHTML = result.svg;
-              } else {
-                element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：无法解析结果</pre>`;
-              }
-            } else {
-              element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：未知错误</pre>`;
-            }
-          })
-          .catch((err) => {
-            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
+            mermaid
+              .render(id, code)
+              .then((result) => {
+                // mermaid.render 返回 { svg: string }
+                if (typeof result === 'string') {
+                  element.innerHTML = result;
+                } else if (result && typeof result === 'object') {
+                  if (result.svg) {
+                    element.innerHTML = result.svg;
+                  } else {
+                    element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：无法解析结果</pre>`;
+                  }
+                } else {
+                  element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：未知错误</pre>`;
+                }
+              })
+              .catch((err) => {
+                element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
+              });
           });
-      });
-    }
+        }
 
-    // 代码高亮
-    if (typeof hljs !== 'undefined') {
-      preview.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
-      });
-    }
-  }, 50);
+        // 代码高亮（延迟执行，避免阻塞）
+        if (typeof hljs !== 'undefined') {
+          preview.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+          });
+        }
+      }, 0);
+    });
+  }, 300);
 }
 
 // 更新字符统计
@@ -286,14 +293,26 @@ function updateCharCount(markdown) {
   charCount.innerHTML = `${count} 字符 | URL: ${urlLength} 字符${browserHtml}`;
 }
 
-// 更新行号
+// 更新行号（优化：使用DocumentFragment减少DOM操作）
 function updateLineNumbers(markdown) {
   const lines = markdown.split('\n').length;
-  let html = '';
-  for (let i = 1; i <= lines; i++) {
-    html += `<span class="line-number">${i}</span>`;
+  const currentLineCount = lineNumbers.childElementCount;
+
+  // 如果行数没有变化，不更新
+  if (lines === currentLineCount) {
+    return;
   }
-  lineNumbers.innerHTML = html;
+
+  // 使用DocumentFragment批量更新
+  const fragment = document.createDocumentFragment();
+  for (let i = 1; i <= lines; i++) {
+    const span = document.createElement('span');
+    span.className = 'line-number';
+    span.textContent = i;
+    fragment.appendChild(span);
+  }
+  lineNumbers.innerHTML = '';
+  lineNumbers.appendChild(fragment);
 }
 
 // 生成并复制分享链接
