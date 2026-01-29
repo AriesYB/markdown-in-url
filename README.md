@@ -6,7 +6,8 @@
 
 ## 在线使用
 
-- GitHub Pages，安全免费: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
+- Cloudflare Pages: [https://markdown-in-url.pages.dev/](https://markdown-in-url.pages.dev/)
+- GitHub Pages: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
 
 ## 核心特点
 
@@ -95,6 +96,4 @@ markdown-in-url/
 
 本项目采用 [MIT License](LICENSE) 开源协议。
 
-Copyright (c) 2025 AriesYB
-
-详情请查看 [LICENSE](LICENSE) 文件。
+Copyright (c) 2026 AriesYB

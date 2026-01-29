@@ -444,6 +444,30 @@ body.preview-mode .preview-container {
   font-size: 14px;
 }
 
+/* GitHub 链接样式 */
+.github-link {
+  padding: 8px 12px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.github-link:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+}
+
+.github-icon {
+  color: var(--text-primary);
+  transition: color 0.2s ease;
+}
+
+.github-link:hover .github-icon {
+  color: var(--accent-color);
+}
+
 /* Footer */
 .footer {
   padding: 10px 24px;

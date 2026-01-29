@@ -611,6 +611,18 @@ function bindEvents() {
 
   // 快捷键
   editor.addEventListener('keydown', (e) => {
+    // Tab键阻止默认行为，防止焦点移出编辑器
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      // 插入两个空格
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const value = editor.value;
+      editor.value = value.substring(0, start) + '  ' + value.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 2;
+      updatePreview();
+      return;
+    }
     // Ctrl+Z 撤销
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
