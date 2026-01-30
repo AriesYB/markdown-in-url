@@ -1,5 +1,11 @@
 # markdown-in-url
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-brightgreen)
+![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-Deployed-orange)
+![Status](https://img.shields.io/badge/Status-Online-success)
+![Platform](https://img.shields.io/badge/Platform-Web-lightgrey)
+
 > 通过 URL 链接分享 Markdown 内容，无需后端服务器
 
 你是否遇到过这种问题，本地编写了Markdown，想快速分享给同事或朋友临时查看，但又想避免使用第三方软件（又卡又需要登录），那么本工具 perfectly 适合你！
@@ -23,27 +29,20 @@
 - **即开即用**：接收者打开链接即可查看，无需登录或注册
 - **纯前端实现**：无需后端服务器，数据完全在浏览器中处理
 
-### 功能
-
-- 👁️ **在线预览**：左侧编辑 Markdown，右侧实时预览渲染结果
-- 🎨 **Mermaid 图表**：完整支持各种 Mermaid 图表类型
-- 💻 **代码高亮**：支持多种编程语言语法高亮
-- 🌙 **主题切换**：支持深色/浅色主题
-- 📋 **预设模板**：提供丰富的 Mermaid 图表模板
-- 💾 **本地保存**：自动保存到浏览器本地存储
-- 📄 **导出功能**：支持导出 HTML 和 PDF
-
-## 本地运行
-
-1. 克隆或下载本项目 `git clone https://github.com/AriesYB/markdown-in-url.git`
-2. 直接用浏览器打开 `index.html` 文件
-
 ## URL 分享原理
 
 ### 参数格式
 
+- 链接传递数据
+
 ```
-`domain` + /markdown-in-url/?data=xxx
+domain + /markdown-in-url/?data=xxx
+```
+
+- 拉取markdown文件并渲染
+
+```
+domain + /markdown-in-url/?source=xxx.md
 ```
 
 ### 数据编码流程
@@ -96,6 +95,11 @@ markdown-in-url/
 2. **URL 长度**：内容过大时 URL 可能超出浏览器限制
 3. **安全性**：仅用于临时分享，不要在 URL 中传递敏感信息
 4. **浏览器兼容性**：建议使用现代浏览器（Chrome、Firefox、Edge、Safari）
+
+## 本地运行
+
+1. 克隆或下载本项目 `git clone https://github.com/AriesYB/markdown-in-url.git`
+2. 直接用浏览器打开 `index.html` 文件
 
 ## 许可证
 

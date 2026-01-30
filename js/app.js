@@ -153,6 +153,8 @@ function loadFromUrl() {
 
 这是一个支持 **Mermaid 图表** 的 Markdown 在线编辑器。
 
+[关于本项目的更多介绍](https://markdown-in-url.pages.dev/?source=https://raw.githubusercontent.com/AriesYB/markdown-in-url/refs/heads/master/README.md)
+
 ## 功能特点
 
 - 📝 在线编辑 Markdown
@@ -816,7 +818,8 @@ function toggleTheme() {
 // 加载主题
 function loadTheme() {
   const savedTheme = localStorage.getItem('markdown-preview-theme');
-  if (savedTheme === 'light') {
+  // 默认使用白天主题
+  if (savedTheme !== 'dark') {
     document.body.classList.add('light-theme');
     themeToggle.querySelector('.icon').innerHTML = `
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
