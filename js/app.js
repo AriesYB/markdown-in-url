@@ -741,11 +741,12 @@ function toggleMode() {
 function loadMode() {
   const params = new URLSearchParams(window.location.search);
   const hasData = params.get('data');
+  const hasSource = params.get('source');
 
   const savedMode = localStorage.getItem('markdown-preview-mode');
 
-  // 从链接进入时，默认预览模式
-  if (hasData) {
+  // 从链接进入时（data 或 source），默认预览模式
+  if (hasData || hasSource) {
     isPreviewMode = true;
     document.body.classList.add('preview-mode');
     modeToggle.querySelector('.icon').innerHTML = `
@@ -824,6 +825,20 @@ function loadTheme() {
     themeToggle.querySelector('.icon').innerHTML = `
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
     `;
+    // 初始化 mermaid 白天主题
+    mermaid.initialize({
+      theme: 'default',
+      themeVariables: {
+        darkMode: false,
+        background: '#ffffff',
+        primaryColor: '#007acc',
+        primaryTextColor: '#333333',
+        primaryBorderColor: '#d4d4d4',
+        lineColor: '#666666',
+        secondaryColor: '#f3f3f3',
+        tertiaryColor: '#e8e8e8',
+      },
+    });
   }
 }
 
