@@ -34,6 +34,12 @@ const templateModal = document.getElementById('templateModal');
 const closeModalBtn = document.getElementById('closeModal');
 const templateList = document.getElementById('templateList');
 const autocomplete = document.getElementById('autocomplete');
+const tocToggle = document.getElementById('tocToggle');
+const toc = document.getElementById('toc');
+const tocClose = document.getElementById('tocClose');
+const tocContent = document.getElementById('tocContent');
+const widthSlider = document.getElementById('widthSlider');
+const widthLabel = document.getElementById('widthLabel');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -125,6 +131,13 @@ function decodeData(encoded) {
 function loadFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const data = params.get('data');
+  const source = params.get('source');
+
+  // 优先处理 source 参数（远程 markdown 文件）
+  if (source) {
+    loadFromSource(source);
+    return;
+  }
 
   if (data) {
     const markdown = decodeData(data);
@@ -144,10 +157,8 @@ function loadFromUrl() {
 
 - 📝 在线编辑 Markdown
 - 👁️ 实时预览渲染结果
-- 🔗 生成分享链接
+- 🔗 **生成分享链接（无需传输markdown文件）**
 - 🎨 支持 Mermaid 图表
-- 💻 代码语法高亮
-- 🌙 深色/浅色主题
 
 ## Mermaid 图表示例
 
@@ -189,6 +200,53 @@ sequenceDiagram
   }
 }
 
+// 从远程 URL 加载 markdown 内容
+async function loadFromSource(sourceUrl) {
+  try {
+    showToast('正在加载远程内容...', 'success');
+
+    const response = await fetch(sourceUrl);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const markdown = await response.text();
+    editor.value = markdown;
+    showToast('已从远程 URL 加载内容');
+
+    // 更新预览
+    updatePreview();
+  } catch (error) {
+    console.error('加载远程内容失败:', error);
+    editor.value = `# 加载失败
+
+无法从以下 URL 加载内容：
+
+\`${sourceUrl}\`
+
+**错误信息：** ${error.message}
+
+## 可能的原因
+
+1. URL 不正确或文件不存在
+2. 服务器不支持 CORS（跨域资源共享）
+3. 网络连接问题
+
+## 解决方案
+
+- 确认 URL 是否正确
+- 确保服务器允许跨域访问（CORS）
+- 对于 GitHub 文件，使用 raw.githubusercontent.com 域名
+- 检查网络连接
+
+---
+
+您可以手动复制 Markdown 内容到编辑器中。`;
+    showToast('加载失败，请检查 URL', 'error');
+  }
+}
+
 // 从本地存储加载
 function loadFromLocalStorage() {
   const saved = localStorage.getItem('markdown-preview-content');
@@ -220,6 +278,11 @@ function updatePreview() {
 
     // 使用 requestAnimationFrame 优化渲染
     requestAnimationFrame(() => {
+      // 保存当前滚动百分比（而不是绝对像素值）
+      const scrollPercentage =
+        preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+      const savedScrollLeft = preview.scrollLeft;
+
       // 渲染 Markdown
       let html;
       try {
@@ -229,9 +292,14 @@ function updatePreview() {
       }
       preview.innerHTML = html;
 
+      // 生成目录
+      generateTableOfContents();
+
       // 渲染 Mermaid 图表（延迟执行，避免阻塞）
       setTimeout(() => {
         const mermaidElements = preview.querySelectorAll('.mermaid');
+        let mermaidPromises = [];
+
         if (mermaidElements.length > 0) {
           mermaidElements.forEach((element) => {
             const code = element.textContent.trim();
@@ -241,7 +309,7 @@ function updatePreview() {
               '-' +
               Math.random().toString(36).substr(2, 9);
 
-            mermaid
+            const promise = mermaid
               .render(id, code)
               .then((result) => {
                 // mermaid.render 返回 { svg: string }
@@ -260,6 +328,7 @@ function updatePreview() {
               .catch((err) => {
                 element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
               });
+            mermaidPromises.push(promise);
           });
         }
 
@@ -269,6 +338,16 @@ function updatePreview() {
             hljs.highlightElement(block);
           });
         }
+
+        // 等待所有 Mermaid 渲染完成后恢复滚动位置
+        Promise.all(mermaidPromises).then(() => {
+          requestAnimationFrame(() => {
+            // 恢复滚动位置（使用百分比计算）
+            preview.scrollTop =
+              scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+            preview.scrollLeft = savedScrollLeft;
+          });
+        });
       }, 0);
     });
   }, 300);
@@ -368,14 +447,105 @@ function shareLink() {
 }
 
 // 导出 HTML
-function exportHtml() {
+async function exportHtml() {
   const markdown = editor.value.trim();
   if (!markdown) {
     showToast('没有可导出的内容', 'error');
     return;
   }
 
-  const html = `<!DOCTYPE html>
+  // 检测当前主题
+  const isLightTheme = document.body.classList.contains('light-theme');
+
+  // 根据主题设置样式变量
+  const themeStyles = isLightTheme
+    ? {
+        bgPrimary: '#ffffff',
+        bgSecondary: '#f6f8fa',
+        bgTertiary: '#eaeef2',
+        textPrimary: '#24292f',
+        textSecondary: '#57606a',
+        accentColor: '#0969da',
+        accentHover: '#218bff',
+        accentBg: 'rgba(9, 105, 218, 0.1)',
+        borderColor: '#d0d7de',
+        preBg: '#f6f8fa',
+        codeBg: 'rgba(9, 105, 218, 0.1)',
+        codeColor: '#0969da',
+      }
+    : {
+        bgPrimary: '#0d1117',
+        bgSecondary: '#161b22',
+        bgTertiary: '#21262d',
+        textPrimary: '#e6edf3',
+        textSecondary: '#8b949e',
+        accentColor: '#58a6ff',
+        accentHover: '#79c0ff',
+        accentBg: 'rgba(88, 166, 255, 0.15)',
+        borderColor: '#30363d',
+        preBg: '#161b22',
+        codeBg: 'rgba(88, 166, 255, 0.15)',
+        codeColor: '#58a6ff',
+      };
+
+  // 先解析 Markdown
+  let html = marked.parse(markdown);
+
+  // 创建临时容器来处理 Mermaid 图表和图片
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+
+  // 处理图片路径：将相对路径转换为绝对路径
+  const images = tempDiv.querySelectorAll('img');
+  images.forEach((img) => {
+    const src = img.getAttribute('src');
+    if (
+      src &&
+      !src.startsWith('http://') &&
+      !src.startsWith('https://') &&
+      !src.startsWith('data:')
+    ) {
+      // 相对路径转换为绝对路径
+      img.setAttribute(
+        'src',
+        new URL(src, window.location.origin + window.location.pathname).href,
+      );
+    }
+  });
+
+  // 查找所有 mermaid 代码块
+  const mermaidElements = tempDiv.querySelectorAll('.mermaid');
+
+  if (mermaidElements.length > 0) {
+    showToast('正在渲染图表...', 'success');
+
+    // 渲染所有 Mermaid 图表
+    const renderPromises = Array.from(mermaidElements).map(
+      async (element, index) => {
+        const code = element.textContent.trim();
+        const id = `mermaid-export-${Date.now()}-${index}`;
+
+        try {
+          const result = await mermaid.render(id, code);
+          if (typeof result === 'string') {
+            element.innerHTML = result;
+          } else if (result && result.svg) {
+            element.innerHTML = result.svg;
+          }
+        } catch (err) {
+          element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
+        }
+      },
+    );
+
+    // 等待所有图表渲染完成
+    await Promise.all(renderPromises);
+  }
+
+  // 获取处理后的 HTML
+  html = tempDiv.innerHTML;
+
+  const exportHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -383,44 +553,141 @@ function exportHtml() {
     <title>Markdown 导出</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 24px 32px;
             line-height: 1.6;
+            background-color: ${themeStyles.bgPrimary};
+            color: ${themeStyles.textPrimary};
         }
-        pre {
-            background: #f5f5f5;
-            padding: 16px;
-            border-radius: 4px;
-            overflow-x: auto;
+        .content-wrapper {
+            max-width: ${parseInt(localStorage.getItem('markdown-preview-width')) || 70}%;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 28px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            color: ${themeStyles.textPrimary};
+        }
+        h1 {
+            font-size: 2em;
+            padding-bottom: 10px;
+            border-bottom: 1px solid ${themeStyles.borderColor};
+        }
+        h2 {
+            font-size: 1.5em;
+            padding-bottom: 8px;
+            border-bottom: 1px solid ${themeStyles.borderColor};
+        }
+        h3 {
+            font-size: 1.25em;
+        }
+        h4 {
+            font-size: 1.1em;
+        }
+        p {
+            margin-bottom: 16px;
+            color: ${themeStyles.textPrimary};
+        }
+        a {
+            color: ${themeStyles.accentColor};
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        a:hover {
+            color: ${themeStyles.accentHover};
+            text-decoration: underline;
         }
         code {
-            background: #f5f5f5;
+            background-color: ${themeStyles.codeBg};
+            color: ${themeStyles.codeColor};
             padding: 2px 6px;
-            border-radius: 3px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background-color: ${themeStyles.preBg};
+            padding: 16px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            border: 1px solid ${themeStyles.borderColor};
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: ${themeStyles.textPrimary};
+        }
+        blockquote {
+            border-left: 3px solid ${themeStyles.accentColor};
+            padding-left: 16px;
+            margin: 20px 0;
+            color: ${themeStyles.textSecondary};
+            font-style: italic;
+        }
+        ul, ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+        li {
+            margin-bottom: 6px;
+            color: ${themeStyles.textPrimary};
         }
         table {
             border-collapse: collapse;
             width: 100%;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px 12px;
+            border: 1px solid ${themeStyles.borderColor};
+            padding: 10px 14px;
+            text-align: left;
         }
-        blockquote {
-            border-left: 4px solid #007acc;
-            padding-left: 16px;
-            color: #666;
+        th {
+            background-color: ${themeStyles.bgSecondary};
+            font-weight: 600;
+            color: ${themeStyles.textPrimary};
+        }
+        tr:nth-child(even) {
+            background-color: ${themeStyles.bgSecondary};
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid ${themeStyles.borderColor};
+            margin: 28px 0;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 24px 0;
+            background-color: ${themeStyles.bgSecondary};
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid ${themeStyles.borderColor};
+        }
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
 <body>
-${marked.parse(markdown)}
+    <div class="content-wrapper">
+        ${html}
+    </div>
 </body>
 </html>`;
 
-  const blob = new Blob([html], { type: 'text/html' });
+  const blob = new Blob([exportHtml], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -449,13 +716,16 @@ function toggleMode() {
   isPreviewMode = !isPreviewMode;
   document.body.classList.toggle('preview-mode', isPreviewMode);
 
-  // 更新按钮文本和图标
+  // 更新按钮图标
   if (isPreviewMode) {
-    modeText.textContent = '编辑';
-    modeToggle.querySelector('.icon').textContent = '✏️';
+    modeToggle.querySelector('.icon').innerHTML = `
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+    `;
   } else {
-    modeText.textContent = '预览';
-    modeToggle.querySelector('.icon').textContent = '👁️';
+    modeToggle.querySelector('.icon').innerHTML = `
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+      <circle cx="12" cy="12" r="3"/>
+    `;
   }
 
   // 保存模式偏好
@@ -476,20 +746,24 @@ function loadMode() {
   if (hasData) {
     isPreviewMode = true;
     document.body.classList.add('preview-mode');
-    modeText.textContent = '编辑';
-    modeToggle.querySelector('.icon').textContent = '✏️';
+    modeToggle.querySelector('.icon').innerHTML = `
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+    `;
   } else if (savedMode === 'preview') {
     // 非链接进入，但保存了预览模式
     isPreviewMode = true;
     document.body.classList.add('preview-mode');
-    modeText.textContent = '编辑';
-    modeToggle.querySelector('.icon').textContent = '✏️';
+    modeToggle.querySelector('.icon').innerHTML = `
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+    `;
   } else {
     // 默认编辑模式
     isPreviewMode = false;
     document.body.classList.remove('preview-mode');
-    modeText.textContent = '预览';
-    modeToggle.querySelector('.icon').textContent = '👁️';
+    modeToggle.querySelector('.icon').innerHTML = `
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+      <circle cx="12" cy="12" r="3"/>
+    `;
   }
 }
 
@@ -520,7 +794,23 @@ function toggleTheme() {
   localStorage.setItem('markdown-preview-theme', isLight ? 'light' : 'dark');
 
   // 更新按钮图标（显示将要切换到的主题）
-  themeToggle.querySelector('.icon').textContent = isLight ? '🌙' : '☀️';
+  if (isLight) {
+    themeToggle.querySelector('.icon').innerHTML = `
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    `;
+  } else {
+    themeToggle.querySelector('.icon').innerHTML = `
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/>
+      <path d="M12 20v2"/>
+      <path d="m4.93 4.93 1.41 1.41"/>
+      <path d="m17.66 17.66 1.41 1.41"/>
+      <path d="M2 12h2"/>
+      <path d="M20 12h2"/>
+      <path d="m6.34 17.66-1.41 1.41"/>
+      <path d="m19.07 4.93-1.41 1.41"/>
+    `;
+  }
 }
 
 // 加载主题
@@ -528,7 +818,9 @@ function loadTheme() {
   const savedTheme = localStorage.getItem('markdown-preview-theme');
   if (savedTheme === 'light') {
     document.body.classList.add('light-theme');
-    themeToggle.querySelector('.icon').textContent = '🌙';
+    themeToggle.querySelector('.icon').innerHTML = `
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    `;
   }
 }
 
@@ -595,9 +887,10 @@ function bindEvents() {
     }
   });
 
-  // 预览区滚动同步到编辑器
+  // 预览区滚动同步到编辑器（仅在预览模式下启用）
   preview.addEventListener('scroll', () => {
-    if (!isSyncingScroll) {
+    // 编辑模式下禁用预览区到编辑器的滚动同步
+    if (isPreviewMode && !isSyncingScroll) {
       isSyncingScroll = true;
       const scrollPercentage =
         preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
@@ -679,11 +972,28 @@ function bindEvents() {
   // 模式切换
   modeToggle.addEventListener('click', toggleMode);
 
+  // 目录切换
+  tocToggle.addEventListener('click', toggleToc);
+  tocClose.addEventListener('click', toggleToc);
+
+  // 预览区滚动时更新激活的目录项
+  preview.addEventListener('scroll', () => {
+    if (!isSyncingScroll) {
+      updateActiveTocItem();
+    }
+  });
+
   // 加载保存的主题
   loadTheme();
 
   // 加载保存的模式
   loadMode();
+
+  // 加载目录显示状态
+  loadTocState();
+
+  // 加载预览宽度设置
+  loadPreviewWidth();
 
   // 初始化自动补全
   initAutocomplete();
@@ -1224,3 +1534,118 @@ function redo() {
   updatePreview();
   showToast('已重做');
 }
+
+// ==================== 目录功能 ====================
+
+// 生成目录
+function generateTableOfContents() {
+  const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+
+  if (headings.length === 0) {
+    tocContent.innerHTML =
+      '<div style="padding: 16px; color: var(--text-muted); font-size: 13px;">暂无目录</div>';
+    return;
+  }
+
+  let tocHtml = '';
+  headings.forEach((heading, index) => {
+    const level = parseInt(heading.tagName.charAt(1));
+    const text = heading.textContent.trim();
+    const id = `heading-${index}`;
+
+    // 为标题添加 ID
+    heading.id = id;
+
+    // 生成目录项
+    tocHtml += `
+      <a class="toc-item toc-level-${level}" data-target="${id}" title="${escapeHtml(text)}">
+        ${escapeHtml(text)}
+      </a>
+    `;
+  });
+
+  tocContent.innerHTML = tocHtml;
+
+  // 绑定目录项点击事件
+  tocContent.querySelectorAll('.toc-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetId = item.dataset.target;
+      const targetElement = document.getElementById(targetId);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+}
+
+// 切换目录显示/隐藏
+function toggleToc() {
+  toc.classList.toggle('hidden');
+
+  // 保存目录显示状态
+  const isHidden = toc.classList.contains('hidden');
+  localStorage.setItem('markdown-preview-toc-hidden', isHidden);
+}
+
+// 加载目录显示状态
+function loadTocState() {
+  const isHidden =
+    localStorage.getItem('markdown-preview-toc-hidden') === 'true';
+  if (isHidden) {
+    toc.classList.add('hidden');
+  }
+}
+
+// 更新当前激活的目录项
+function updateActiveTocItem() {
+  const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  const tocItems = tocContent.querySelectorAll('.toc-item');
+
+  if (headings.length === 0 || tocItems.length === 0) return;
+
+  let activeIndex = -1;
+  const scrollPosition = preview.scrollTop + 100; // 偏移量，提前激活
+
+  headings.forEach((heading, index) => {
+    if (heading.offsetTop <= scrollPosition) {
+      activeIndex = index;
+    }
+  });
+
+  // 更新激活状态
+  tocItems.forEach((item, index) => {
+    if (index === activeIndex) {
+      item.classList.add('active');
+      // 确保激活项在可视区域内
+      item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+// ==================== 预览宽度控制 ====================
+
+// 更新预览宽度
+function updatePreviewWidth(width) {
+  preview.style.maxWidth = `${width}%`;
+  widthLabel.textContent = `${width}%`;
+  widthSlider.value = width;
+
+  // 保存宽度设置
+  localStorage.setItem('markdown-preview-width', width);
+}
+
+// 加载预览宽度设置
+function loadPreviewWidth() {
+  const savedWidth = localStorage.getItem('markdown-preview-width');
+  const width = savedWidth ? parseInt(savedWidth) : 70;
+  updatePreviewWidth(width);
+}
+
+// 绑定宽度滑块事件
+widthSlider.addEventListener('input', (e) => {
+  const width = parseInt(e.target.value);
+  updatePreviewWidth(width);
+});

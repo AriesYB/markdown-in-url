@@ -4,10 +4,14 @@
 
 你是否遇到过这种问题，本地编写了Markdown，想快速分享给同事或朋友临时查看，但又想避免使用第三方软件（又卡又需要登录），那么本工具 perfectly 适合你！
 
+[在markdown-in-url中预览本markdown](https://markdown-in-url.pages.dev/?source=https://raw.githubusercontent.com/AriesYB/markdown-in-url/refs/heads/master/README.md)
+
 ## 在线使用
 
 - Cloudflare Pages: [https://markdown-in-url.pages.dev/](https://markdown-in-url.pages.dev/)
 - GitHub Pages: [https://ariesyb.github.io/markdown-in-url/](https://ariesyb.github.io/markdown-in-url/)
+
+<img src="https://markdown-in-url.pages.dev/img/main_flow.svg" alt="主要流程">
 
 ## 核心特点
 
@@ -31,7 +35,7 @@
 
 ## 本地运行
 
-1. 克隆或下载本项目 `git clone https://github.com/AriesYB/markdown-in-url`
+1. 克隆或下载本项目 `git clone https://github.com/AriesYB/markdown-in-url.git`
 2. 直接用浏览器打开 `index.html` 文件
 
 ## URL 分享原理
@@ -39,7 +43,7 @@
 ### 参数格式
 
 ```
-https://ariesyb.github.io/markdown-in-url/?data=<compressed_base64_data>
+`domain` + /markdown-in-url/?data=xxx
 ```
 
 ### 数据编码流程
@@ -59,7 +63,6 @@ https://ariesyb.github.io/markdown-in-url/?data=<compressed_base64_data>
 
 - 浏览器 URL 限制约 2000-8000 字符
 - 使用优化的 LZString 压缩后，通常可支持 15KB-60KB 的 Markdown 内容
-- 超大文件建议使用其他方式（如文件上传）
 
 ## 技术栈
 
@@ -76,6 +79,8 @@ https://ariesyb.github.io/markdown-in-url/?data=<compressed_base64_data>
 ```
 markdown-in-url/
 ├── index.html          # 主页面
+├── img/
+│   └── main_flow.svg       # 流程图
 ├── css/
 │   └── style.css       # 样式文件
 ├── js/
@@ -87,7 +92,7 @@ markdown-in-url/
 
 ## 注意事项
 
-1. **CDN 可用性**：确保 CDN 服务在国内可访问，或使用国内镜像
+1. **可用性**：Cloudflare Pages 可在国内可访问，GitHub Pages 国内访问不稳定
 2. **URL 长度**：内容过大时 URL 可能超出浏览器限制
 3. **安全性**：仅用于临时分享，不要在 URL 中传递敏感信息
 4. **浏览器兼容性**：建议使用现代浏览器（Chrome、Firefox、Edge、Safari）
