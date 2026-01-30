@@ -1,0 +1,62 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 渐变定义 -->
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d946ef;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="linkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+    <!-- 阴影滤镜 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.15"/>
+    </filter>
+    <filter id="linkShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="100" cy="100" r="90" fill="url(#mainGradient)" filter="url(#shadow)"/>
+  
+  <!-- 文档图标 -->
+  <g transform="translate(50, 40)">
+    <!-- 文档主体 -->
+    <path d="M10 0 L60 0 L90 30 L90 115 Q90 125 80 125 L10 125 Q0 125 0 115 L0 10 Q0 0 10 0 Z" 
+          fill="white" opacity="0.95"/>
+    <!-- 文档折角 -->
+    <path d="M60 0 L60 30 L90 30" fill="#e0e7ff"/>
+    
+    <!-- Markdown 横杠 - 代表文本内容 -->
+    <g transform="translate(15, 40)">
+      <!-- 标题横杠 -->
+      <rect x="0" y="0" width="50" height="6" rx="3" fill="url(#linkGradient)"/>
+      <!-- 正文横杠 -->
+      <rect x="0" y="15" width="60" height="4" rx="2" fill="#c7d2fe"/>
+      <rect x="0" y="25" width="55" height="4" rx="2" fill="#c7d2fe"/>
+      <rect x="0" y="35" width="60" height="4" rx="2" fill="#c7d2fe"/>
+      <rect x="0" y="45" width="40" height="4" rx="2" fill="#c7d2fe"/>
+      <!-- 代码块横杠 -->
+      <rect x="0" y="58" width="60" height="20" rx="4" fill="#f1f5f9"/>
+      <rect x="8" y="64" width="20" height="3" rx="1.5" fill="#94a3b8"/>
+      <rect x="8" y="70" width="30" height="3" rx="1.5" fill="#94a3b8"/>
+    </g>
+  </g>
+  
+  <!-- 链接图标 - 使用页面分享按钮的图标样式 -->
+  <g transform="translate(125, 125)" filter="url(#linkShadow)">
+    <!-- 链接背景圆 -->
+    <circle cx="25" cy="25" r="28" fill="url(#linkGradient)"/>
+    
+    <!-- 链接符号 - 来自页面分享按钮的图标 -->
+    <g transform="translate(9, 9) scale(1.3)">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" 
+            fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" 
+            fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>
