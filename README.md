@@ -1,4 +1,4 @@
-# markdown-in-url <img src="img/icon.svg" alt="markdown-in-url icon" width="24" height="24">
+# Markdown-in-URL
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-brightgreen) ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-Deployed-orange) ![Status](https://img.shields.io/badge/Status-Online-success) ![Platform](https://img.shields.io/badge/Platform-Web-lightgrey)
 
