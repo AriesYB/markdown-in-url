@@ -1,0 +1,865 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import { useUndoRedo } from './hooks/useUndoRedo';
+import { useDebounce } from './hooks/useDebounce';
+import { encodeData, decodeData } from './utils/encoding';
+import { templates } from './data/templates';
+import Editor from './components/Editor';
+import Preview from './components/Preview';
+import TemplateModal from './components/TemplateModal';
+import Toast from './components/Toast';
+import './App.css';
+
+// HTML 转义函数
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 默认欢迎内容
+const defaultContent = `# 欢迎使用 Markdown 在线预览
+
+这是一个支持 **Mermaid 图表** 的 Markdown 在线编辑器。
+
+[关于本项目的更多介绍](https://markdown-in-url.pages.dev/?source=https://raw.githubusercontent.com/AriesYB/markdown-in-url/refs/heads/master/README.md)
+
+## 功能特点
+
+- 📝 在线编辑 Markdown
+- 👁️ 实时预览渲染结果
+- 🔗 **生成分享链接（无需传输markdown文件）**
+- 🎨 支持 Mermaid 图表
+
+## Mermaid 图表示例
+
+### 流程图
+
+\`\`\`mermaid
+graph TD
+    A[开始] --> B{判断条件}
+    B -->|是| C[执行操作A]
+    B -->|否| D[执行操作B]
+    C --> E[结束]
+    D --> E
+\`\`\`
+
+### 时序图
+
+\`\`\`mermaid
+sequenceDiagram
+    participant 用户
+    participant 系统
+    participant 数据库
+    
+    用户->>系统: 发起请求
+    系统->>数据库: 查询数据
+    数据库-->>系统: 返回结果
+    系统-->>用户: 响应结果
+\`\`\`
+
+## 开始使用
+
+1. 在左侧编辑器输入 Markdown 内容
+2. 右侧实时预览渲染结果
+3. 点击"生成分享链接"按钮
+4. 分享链接给他人，打开即可查看
+
+---
+点击右上角的 **模板** 按钮可以加载更多示例！
+`;
+
+export default function App() {
+  // 状态管理
+  const [markdown, setMarkdown] = useState(defaultContent);
+  const [isDarkTheme, setIsDarkTheme] = useLocalStorage(
+    'markdown-preview-theme',
+    false,
+  );
+  const [isPreviewMode, setIsPreviewMode] = useLocalStorage(
+    'markdown-preview-mode',
+    false,
+  );
+  const [previewWidth, setPreviewWidth] = useLocalStorage(
+    'markdown-preview-width',
+    70,
+  );
+  const [isTocVisible, setIsTocVisible] = useLocalStorage(
+    'markdown-preview-toc-hidden',
+    false,
+  );
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // 撤销/重做
+  const { setValue: setUndoValue, undo, redo } = useUndoRedo(defaultContent);
+
+  // 滚动同步
+  const editorRef = useRef(null);
+  const previewRef = useRef(null);
+  const isSyncingScroll = useRef(false);
+
+  // 防抖处理
+  const debouncedMarkdown = useDebounce(markdown, 300);
+
+  // 从 URL 加载内容
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const data = params.get('data');
+    const source = params.get('source');
+
+    if (source) {
+      loadFromSource(source);
+      setIsPreviewMode(true);
+      return;
+    }
+
+    if (data) {
+      const decoded = decodeData(data);
+      if (decoded) {
+        setMarkdown(decoded);
+        setUndoValue(decoded);
+        setIsPreviewMode(true);
+        showToast('已从 URL 加载内容');
+      } else {
+        showToast('解码失败，请检查链接', 'error');
+      }
+    } else {
+      // 从本地存储加载
+      const saved = localStorage.getItem('markdown-preview-content');
+      if (saved) {
+        setMarkdown(saved);
+        setUndoValue(saved);
+      }
+    }
+  }, []);
+
+  // 从远程 URL 加载
+  const loadFromSource = async (sourceUrl) => {
+    try {
+      showToast('正在加载远程内容...', 'success');
+
+      const response = await fetch(sourceUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const content = await response.text();
+      setMarkdown(content);
+      setUndoValue(content);
+      showToast('已从远程 URL 加载内容');
+    } catch (error) {
+      console.error('加载远程内容失败:', error);
+      const errorContent = `# 加载失败
+
+无法从以下 URL 加载内容：
+
+\`${sourceUrl}\`
+
+**错误信息：** ${error.message}
+
+## 可能的原因
+
+1. URL 不正确或文件不存在
+2. 服务器不支持 CORS（跨域资源共享）
+3. 网络连接问题
+
+## 解决方案
+
+- 确认 URL 是否正确
+- 确保服务器允许跨域访问（CORS）
+- 对于 GitHub 文件，使用 raw.githubusercontent.com 域名
+- 检查网络连接
+
+---
+
+您可以手动复制 Markdown 内容到编辑器中。`;
+      setMarkdown(errorContent);
+      setUndoValue(errorContent);
+      showToast('加载失败，请检查 URL', 'error');
+    }
+  };
+
+  // 保存到本地存储
+  useEffect(() => {
+    localStorage.setItem('markdown-preview-content', markdown);
+  }, [debouncedMarkdown]);
+
+  // 显示 Toast
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+  }, []);
+
+  // 处理编辑器内容变化
+  const handleEditorChange = useCallback(
+    (newValue) => {
+      setMarkdown(newValue);
+      setUndoValue(newValue);
+    },
+    [setUndoValue],
+  );
+
+  // 处理编辑器滚动
+  const handleEditorScroll = useCallback((scrollTop) => {
+    if (!isSyncingScroll.current && editorRef.current && previewRef.current) {
+      isSyncingScroll.current = true;
+
+      // 计算滚动百分比
+      const editor = editorRef.current;
+      const scrollPercentage =
+        scrollTop / (editor.scrollHeight - editor.clientHeight);
+
+      // 同步到预览区
+      const preview = previewRef.current;
+      preview.scrollTop =
+        scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+
+      setTimeout(() => {
+        isSyncingScroll.current = false;
+      }, 50);
+    }
+  }, []);
+
+  // 处理预览区滚动
+  const handlePreviewScroll = useCallback(
+    (scrollTop) => {
+      if (!isSyncingScroll.current && previewRef.current && editorRef.current) {
+        isSyncingScroll.current = true;
+
+        // 计算滚动百分比
+        const preview = previewRef.current;
+        const scrollPercentage =
+          scrollTop / (preview.scrollHeight - preview.clientHeight);
+
+        // 同步到编辑器（仅在预览模式下）
+        if (isPreviewMode) {
+          const editor = editorRef.current;
+          editor.scrollTop =
+            scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+        }
+
+        setTimeout(() => {
+          isSyncingScroll.current = false;
+        }, 50);
+      }
+    },
+    [isPreviewMode],
+  );
+
+  // 切换主题
+  const toggleTheme = useCallback(() => {
+    setIsDarkTheme((prev) => !prev);
+  }, [setIsDarkTheme]);
+
+  // 切换模式
+  const toggleMode = useCallback(() => {
+    setIsPreviewMode((prev) => !prev);
+  }, [setIsPreviewMode]);
+
+  // 加载模板
+  const handleLoadTemplate = useCallback(
+    (index) => {
+      const template = templates[index];
+      setMarkdown(template.content);
+      setUndoValue(template.content);
+      setShowTemplateModal(false);
+      showToast(`已加载模板：${template.name}`);
+    },
+    [setUndoValue],
+  );
+
+  // 清空内容
+  const handleClear = useCallback(() => {
+    if (confirm('确定要清空所有内容吗？')) {
+      setMarkdown('');
+      setUndoValue('');
+      showToast('内容已清空');
+    }
+  }, [setUndoValue]);
+
+  // 生成分享链接
+  const handleShareLink = useCallback(() => {
+    const trimmed = markdown.trim();
+    if (!trimmed) {
+      showToast('请先输入 Markdown 内容', 'error');
+      return;
+    }
+
+    const encoded = encodeData(trimmed);
+    if (!encoded) {
+      showToast('编码失败，内容可能过大', 'error');
+      return;
+    }
+
+    const url = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
+
+    if (url.length > 8000) {
+      showToast('警告：链接较长，某些浏览器可能无法正常访问', 'error');
+    }
+
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showToast('分享链接已复制到剪贴板！');
+      })
+      .catch(() => {
+        prompt('请复制以下链接：', url);
+      });
+  }, [markdown]);
+
+  // 导出 HTML
+  const handleExportHtml = useCallback(async () => {
+    const trimmed = markdown.trim();
+    if (!trimmed) {
+      showToast('没有可导出的内容', 'error');
+      return;
+    }
+
+    showToast('正在渲染图表...', 'success');
+
+    const themeStyles = isDarkTheme
+      ? {
+          bgPrimary: '#0d1117',
+          bgSecondary: '#161b22',
+          bgTertiary: '#21262d',
+          textPrimary: '#e6edf3',
+          textSecondary: '#8b949e',
+          accentColor: '#58a6ff',
+          accentHover: '#79c0ff',
+          accentBg: 'rgba(88, 166, 255, 0.15)',
+          borderColor: '#30363d',
+          preBg: '#161b22',
+          codeBg: 'rgba(88, 166, 255, 0.15)',
+          codeColor: '#58a6ff',
+        }
+      : {
+          bgPrimary: '#ffffff',
+          bgSecondary: '#f6f8fa',
+          bgTertiary: '#eaeef2',
+          textPrimary: '#24292f',
+          textSecondary: '#57606a',
+          accentColor: '#0969da',
+          accentHover: '#218bff',
+          accentBg: 'rgba(9, 105, 218, 0.1)',
+          borderColor: '#d0d7de',
+          preBg: '#f6f8fa',
+          codeBg: 'rgba(9, 105, 218, 0.1)',
+          codeColor: '#0969da',
+        };
+
+    const { marked } = await import('marked');
+    const mermaid = await import('mermaid');
+
+    // 初始化 mermaid
+    mermaid.default.initialize({
+      startOnLoad: false,
+      theme: isDarkTheme ? 'dark' : 'default',
+      securityLevel: 'loose',
+      themeVariables: {
+        darkMode: isDarkTheme,
+        background: isDarkTheme ? '#252526' : '#ffffff',
+        primaryColor: '#007acc',
+        primaryTextColor: isDarkTheme ? '#d4d4d4' : '#333333',
+        primaryBorderColor: isDarkTheme ? '#3e3e42' : '#d4d4d4',
+        lineColor: isDarkTheme ? '#858585' : '#666666',
+        secondaryColor: isDarkTheme ? '#2d2d30' : '#f3f3f3',
+        tertiaryColor: isDarkTheme ? '#1e1e1e' : '#e8e8e8',
+      },
+    });
+
+    // 自定义代码块渲染器
+    const renderer = new marked.Renderer();
+    renderer.code = function (token) {
+      const code = token.text || '';
+      const language = token.lang || '';
+
+      if (language === 'mermaid') {
+        return `<div class="mermaid">${code}</div>`;
+      }
+      return `<pre><code class="language-${language || 'plaintext'}">${escapeHtml(code)}</code></pre>`;
+    };
+
+    marked.setOptions({
+      renderer,
+      breaks: true,
+      gfm: true,
+    });
+
+    // 先解析 Markdown
+    let html = marked.parse(trimmed);
+
+    // 创建临时容器来处理 Mermaid 图表和图片
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // 处理图片路径：将相对路径转换为绝对路径
+    const images = tempDiv.querySelectorAll('img');
+    images.forEach((img) => {
+      const src = img.getAttribute('src');
+      if (
+        src &&
+        !src.startsWith('http://') &&
+        !src.startsWith('https://') &&
+        !src.startsWith('data:')
+      ) {
+        // 相对路径转换为绝对路径
+        img.setAttribute(
+          'src',
+          new URL(src, window.location.origin + window.location.pathname).href,
+        );
+      }
+    });
+
+    // 查找所有 mermaid 代码块
+    const mermaidElements = tempDiv.querySelectorAll('.mermaid');
+
+    if (mermaidElements.length > 0) {
+      // 渲染所有 Mermaid 图表
+      const renderPromises = Array.from(mermaidElements).map(
+        async (element, index) => {
+          const code = element.textContent.trim();
+          const id = `mermaid-export-${Date.now()}-${index}`;
+
+          try {
+            const result = await mermaid.default.render(id, code);
+            if (typeof result === 'string') {
+              element.innerHTML = result;
+            } else if (result && result.svg) {
+              element.innerHTML = result.svg;
+            }
+          } catch (err) {
+            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
+          }
+        },
+      );
+
+      // 等待所有图表渲染完成
+      await Promise.all(renderPromises);
+    }
+
+    // 获取处理后的 HTML
+    html = tempDiv.innerHTML;
+
+    const exportHtmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 导出</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 24px 32px;
+            line-height: 1.6;
+            background-color: ${themeStyles.bgPrimary};
+            color: ${themeStyles.textPrimary};
+        }
+        .content-wrapper {
+            max-width: ${previewWidth}%;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 28px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            color: ${themeStyles.textPrimary};
+        }
+        h1 {
+            font-size: 2em;
+            padding-bottom: 10px;
+            border-bottom: 1px solid ${themeStyles.borderColor};
+        }
+        h2 {
+            font-size: 1.5em;
+            padding-bottom: 8px;
+            border-bottom: 1px solid ${themeStyles.borderColor};
+        }
+        h3 {
+            font-size: 1.25em;
+        }
+        h4 {
+            font-size: 1.1em;
+        }
+        p {
+            margin-bottom: 16px;
+            color: ${themeStyles.textPrimary};
+        }
+        a {
+            color: ${themeStyles.accentColor};
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        a:hover {
+            color: ${themeStyles.accentHover};
+            text-decoration: underline;
+        }
+        code {
+            background-color: ${themeStyles.codeBg};
+            color: ${themeStyles.codeColor};
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background-color: ${themeStyles.preBg};
+            padding: 16px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            border: 1px solid ${themeStyles.borderColor};
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: ${themeStyles.textPrimary};
+        }
+        blockquote {
+            border-left: 3px solid ${themeStyles.accentColor};
+            padding-left: 16px;
+            margin: 20px 0;
+            color: ${themeStyles.textSecondary};
+            font-style: italic;
+        }
+        ul, ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+        li {
+            margin-bottom: 6px;
+            color: ${themeStyles.textPrimary};
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            border: 1px solid ${themeStyles.borderColor};
+            padding: 10px 14px;
+            text-align: left;
+        }
+        th {
+            background-color: ${themeStyles.bgSecondary};
+            font-weight: 600;
+            color: ${themeStyles.textPrimary};
+        }
+        tr:nth-child(even) {
+            background-color: ${themeStyles.bgSecondary};
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid ${themeStyles.borderColor};
+            margin: 28px 0;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 24px 0;
+            background-color: ${themeStyles.bgSecondary};
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid ${themeStyles.borderColor};
+        }
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-wrapper">
+        ${html}
+    </div>
+</body>
+</html>`;
+
+    const blob = new Blob([exportHtmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'markdown-export.html';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showToast('HTML 文件已导出');
+  }, [markdown, isDarkTheme, previewWidth]);
+
+  // 处理目录点击
+  const handleHeadingClick = useCallback(
+    (action) => {
+      if (action === 'toggle') {
+        setIsTocVisible((prev) => !prev);
+      } else if (action === null) {
+        // 关闭目录
+        setIsTocVisible(false);
+      } else if (typeof action === 'string' && action.startsWith('width:')) {
+        const width = parseInt(action.split(':')[1]);
+        setPreviewWidth(width);
+      } else if (action) {
+        const element = document.getElementById(action);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    },
+    [setIsTocVisible, setPreviewWidth],
+  );
+
+  return (
+    <div
+      className={`app ${isDarkTheme ? 'dark-theme' : 'light-theme'} ${isPreviewMode ? 'preview-mode' : ''}`}
+    >
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
+          <h1 className="logo">
+            <img
+              src="/img/icon.svg"
+              alt="logo"
+              width="32"
+              height="32"
+              style={{ verticalAlign: 'middle', marginRight: '8px' }}
+            />
+            Markdown 在线预览
+          </h1>
+        </div>
+        <div className="header-right">
+          <button
+            className="btn btn-secondary"
+            onClick={toggleMode}
+            title="切换模式"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {isPreviewMode ? (
+                <>
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </>
+              ) : (
+                <>
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </>
+              )}
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={toggleTheme}
+            title="切换主题"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {isDarkTheme ? (
+                <>
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                </>
+              ) : (
+                <>
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="m4.93 4.93 1.41 1.41" />
+                  <path d="m17.66 17.66 1.41 1.41" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="m6.34 17.66-1.41 1.41" />
+                  <path d="m19.07 4.93-1.41 1.41" />
+                </>
+              )}
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowTemplateModal(true)}
+            title="加载示例模板"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+              <line x1="3" x2="21" y1="9" y2="9" />
+              <path d="m9 16 3-3 3 3" />
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleClear}
+            title="清空内容"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleExportHtml}
+            title="导出 HTML"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" x2="8" y1="13" y2="13" />
+              <line x1="16" x2="8" y1="17" y2="17" />
+              <line x1="10" x2="8" y1="9" y2="9" />
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleShareLink}
+            title="生成并复制分享链接"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="url(#linkGradient)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <defs>
+                <linearGradient
+                  id="linkGradient"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="100%"
+                >
+                  <stop
+                    offset="0%"
+                    style={{ stopColor: '#22d3ee', stopOpacity: 1 }}
+                  />
+                  <stop
+                    offset="100%"
+                    style={{ stopColor: '#3b82f6', stopOpacity: 1 }}
+                  />
+                </linearGradient>
+              </defs>
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </button>
+          <a
+            href="https://github.com/AriesYB/markdown-in-url"
+            target="_blank"
+            className="btn btn-secondary github-link"
+            title="GitHub 仓库"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="currentColor"
+            >
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+            </svg>
+          </a>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="main">
+        {/* Editor */}
+        {!isPreviewMode && (
+          <Editor
+            value={markdown}
+            onChange={handleEditorChange}
+            onScroll={handleEditorScroll}
+            onUndo={undo}
+            onRedo={redo}
+            editorRef={editorRef}
+          />
+        )}
+
+        {/* Preview */}
+        <Preview
+          markdown={markdown}
+          isDarkTheme={isDarkTheme}
+          width={previewWidth}
+          onScroll={handlePreviewScroll}
+          onHeadingClick={handleHeadingClick}
+          isTocVisible={!isTocVisible}
+          previewRef={previewRef}
+        />
+      </main>
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Template Modal */}
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onSelect={handleLoadTemplate}
+      />
+    </div>
+  );
+}

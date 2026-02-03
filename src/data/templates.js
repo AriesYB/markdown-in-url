@@ -1,5 +1,5 @@
 // 预设模板列表
-const templates = [
+export const templates = [
   {
     name: '流程图',
     description: '展示业务流程和决策逻辑',

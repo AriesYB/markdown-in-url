@@ -1,0 +1,81 @@
+.editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border-color, #30363d);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  height: 44px;
+  background-color: var(--bg-secondary, #161b22);
+  border-bottom: 1px solid var(--border-color, #30363d);
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #8b949e);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.char-count {
+  font-size: 12px;
+  color: var(--text-muted, #6e7681);
+}
+
+.editor-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.line-numbers {
+  width: 48px;
+  padding: 16px 8px;
+  background-color: var(--bg-secondary, #161b22);
+  color: var(--text-muted, #6e7681);
+  font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border-color, #30363d);
+}
+
+.line-numbers::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.line-number {
+  display: block;
+  min-height: 1.6em;
+}
+
+.editor {
+  flex: 1;
+  width: 100%;
+  padding: 16px 20px;
+  background-color: var(--bg-primary, #0d1117);
+  color: var(--text-primary, #e6edf3);
+  border: none;
+  resize: none;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  tab-size: 4;
+}
+
+.editor::placeholder {
+  color: var(--text-muted, #6e7681);
+}
