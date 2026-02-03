@@ -61,9 +61,8 @@ domain + /markdown-in-url/?source=xxx.md
 
 ## 技术栈
 
-- **HTML5**：页面结构
-- **CSS3**：样式设计
-- **JavaScript (ES6+)**：核心逻辑
+- **React 19**：UI 框架
+- **Vite**：构建工具
 - **marked.js**：Markdown 解析
 - **mermaid.js**：图表渲染
 - **highlight.js**：代码高亮
@@ -73,15 +72,32 @@ domain + /markdown-in-url/?source=xxx.md
 
 ```
 markdown-in-url/
-├── index.html          # 主页面
-├── img/
-│   └── main_flow.svg       # 流程图
-├── css/
-│   └── style.css       # 样式文件
-├── js/
-│   └── app.js          # 核心逻辑
-├── templates/
-│   └── examples.js     # 预设模板
+├── index.html          # 入口文件
+├── public/
+│   └── img/
+│       ├── icon.svg        # 图标
+│       └── main_flow.svg   # 流程图
+├── src/
+│   ├── App.jsx         # 根组件
+│   ├── main.jsx         # 应用入口
+│   ├── components/      # 组件目录
+│   │   ├── Editor.jsx      # 编辑器组件
+│   │   ├── Preview.jsx     # 预览组件
+│   │   ├── Autocomplete.jsx # 自动补全组件
+│   │   ├── TableOfContents.jsx # 目录组件
+│   │   ├── TemplateModal.jsx # 模板弹窗
+│   │   └── Toast.jsx       # 提示组件
+│   ├── data/           # 数据目录
+│   │   ├── autocomplete.js # 自动补全数据
+│   │   └── templates.js    # 预设模板
+│   ├── hooks/          # 自定义 Hooks
+│   │   ├── useDebounce.js  # 防抖 Hook
+│   │   ├── useLocalStorage.js # 本地存储 Hook
+│   │   └── useUndoRedo.js  # 撤销重做 Hook
+│   └── utils/          # 工具函数
+│       └── encoding.js    # 编码解码工具
+├── package.json        # 项目配置
+├── vite.config.js      # Vite 配置
 └── README.md           # 使用说明
 ```
 
@@ -95,7 +111,9 @@ markdown-in-url/
 ## 本地运行
 
 1. 克隆或下载本项目 `git clone https://github.com/AriesYB/markdown-in-url.git`
-2. 直接用浏览器打开 `index.html` 文件
+2. 安装依赖 `npm install`
+3. 启动开发服务器 `npm run dev`
+4. 构建生产版本 `npm run build`
 
 ## 许可证
 

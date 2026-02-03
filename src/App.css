@@ -198,6 +198,72 @@ body {
   border-color: var(--border-light);
 }
 
+/* 导出下拉菜单 */
+.export-dropdown {
+  position: relative;
+}
+
+.export-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 160px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.export-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  text-align: left;
+}
+
+.export-menu-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.export-menu-item .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* 拖拽上传样式 */
+.main {
+  position: relative;
+}
+
+.main.drag-over {
+  background-color: var(--accent-bg);
+  border: 2px dashed var(--accent-color);
+}
+
+.main.drag-over::after {
+  content: '拖放 Markdown 文件到此处';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent-color);
+  pointer-events: none;
+  z-index: 100;
+}
+
 .github-link .icon {
   color: var(--text-primary);
   transition: color 0.15s ease;

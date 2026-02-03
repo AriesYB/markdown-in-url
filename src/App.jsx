@@ -89,6 +89,8 @@ export default function App() {
     false,
   );
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState(null);
 
   // 撤销/重做
@@ -594,6 +596,78 @@ export default function App() {
     showToast('HTML 文件已导出');
   }, [markdown, isDarkTheme, previewWidth]);
 
+  // 导出 Markdown
+  const handleExportMarkdown = useCallback(() => {
+    const trimmed = markdown.trim();
+    if (!trimmed) {
+      showToast('没有可导出的内容', 'error');
+      return;
+    }
+
+    const blob = new Blob([trimmed], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'document.md';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setShowExportMenu(false);
+    showToast('Markdown 文件已导出');
+  }, [markdown]);
+
+  // 处理文件导入
+  const handleFileImport = useCallback(
+    (file) => {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        setMarkdown(content);
+        setUndoValue(content);
+        showToast(`已导入文件：${file.name}`);
+      };
+      reader.onerror = () => {
+        showToast('文件读取失败', 'error');
+      };
+      reader.readAsText(file);
+    },
+    [setUndoValue],
+  );
+
+  // 处理拖拽上传
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.name.endsWith('.md') || file.type === 'text/markdown') {
+          handleFileImport(file);
+        } else {
+          showToast('请上传 .md 文件', 'error');
+        }
+      }
+    },
+    [handleFileImport],
+  );
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
   // 处理目录点击
   const handleHeadingClick = useCallback(
     (action) => {
@@ -739,10 +813,85 @@ export default function App() {
               <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
           </button>
+          {/* 导出按钮 */}
+          <div className="export-dropdown">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              title="导出"
+            >
+              <svg
+                className="icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
+            </button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button
+                  className="export-menu-item"
+                  onClick={handleExportMarkdown}
+                >
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  导出 Markdown
+                </button>
+                <button
+                  className="export-menu-item"
+                  onClick={() => {
+                    handleExportHtml();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" x2="8" y1="13" y2="13" />
+                    <line x1="16" x2="8" y1="17" y2="17" />
+                    <line x1="10" x2="8" y1="9" y2="9" />
+                  </svg>
+                  导出 HTML
+                </button>
+              </div>
+            )}
+          </div>
+          {/* 导入按钮 */}
           <button
             className="btn btn-secondary"
-            onClick={handleExportHtml}
-            title="导出 HTML"
+            onClick={() => document.getElementById('file-input').click()}
+            title="导入 Markdown"
           >
             <svg
               className="icon"
@@ -755,13 +904,18 @@ export default function App() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" x2="8" y1="13" y2="13" />
-              <line x1="16" x2="8" y1="17" y2="17" />
-              <line x1="10" x2="8" y1="9" y2="9" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" x2="12" y1="3" y2="15" />
             </svg>
           </button>
+          <input
+            id="file-input"
+            type="file"
+            accept=".md,.markdown,text/markdown"
+            style={{ display: 'none' }}
+            onChange={(e) => handleFileImport(e.target.files[0])}
+          />
           <button
             className="btn btn-secondary"
             onClick={handleShareLink}
@@ -820,7 +974,12 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="main">
+      <main
+        className={`main ${isDragging ? 'drag-over' : ''}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
         {/* Editor */}
         {!isPreviewMode && (
           <Editor
