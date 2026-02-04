@@ -85,6 +85,18 @@
   font-size: 0.9em;
 }
 
+.preview strong,
+.preview b {
+  font-weight: 600;
+  color: var(--text-primary, #e6edf3);
+}
+
+.preview em,
+.preview i {
+  font-style: italic;
+  color: var(--text-primary, #e6edf3);
+}
+
 .preview pre {
   background-color: var(--bg-secondary, #161b22);
   padding: 16px;

@@ -79,6 +79,36 @@ export default function Preview({
       renderer,
       breaks: true,
       gfm: true,
+      mangle: false,
+      headerIds: false,
+      pedantic: false,
+    });
+
+    // 扩展tokenizer以支持中文标点符号的加粗
+    marked.use({
+      extensions: [
+        {
+          name: 'chineseStrong',
+          level: 'inline',
+          start(src) {
+            return src.indexOf('**');
+          },
+          tokenizer(src) {
+            // 匹配 **...** 格式，支持中文标点符号
+            const match = src.match(/^\*\*([^*]+?)\*\*/);
+            if (match) {
+              return {
+                type: 'chineseStrong',
+                raw: match[0],
+                text: match[1],
+              };
+            }
+          },
+          renderer(token) {
+            return `<strong>${token.text}</strong>`;
+          },
+        },
+      ],
     });
   }, []);
 
@@ -88,7 +118,9 @@ export default function Preview({
 
     let html;
     try {
-      html = marked.parse(markdown);
+      // 预处理：将中文引号替换为英文引号，避免干扰加粗语法
+      const processedMarkdown = markdown.replace(/"/g, '"').replace(/"/g, '"');
+      html = marked.parse(processedMarkdown);
     } catch (e) {
       html = `<p style="color: #f14c4c;">Markdown 解析失败：${e.message}</p>`;
     }
