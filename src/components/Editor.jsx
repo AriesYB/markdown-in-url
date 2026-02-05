@@ -9,6 +9,11 @@ export default function Editor({
   onScroll,
   onUndo,
   onRedo,
+  canUndo,
+  canRedo,
+  onShowTemplateModal,
+  onClear,
+  onFileImport,
   editorRef,
 }) {
   const textareaRef = useRef(null);
@@ -295,7 +300,117 @@ export default function Editor({
     <div className="editor-container">
       <div className="panel-header">
         <span className="panel-title">编辑器</span>
-        <span className="char-count">{charCount} 字符</span>
+        <div className="panel-actions">
+          {/* 撤销按钮 */}
+          <button
+            className="btn-icon"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="撤销 (Ctrl+Z)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 7v6h6" />
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+            </svg>
+          </button>
+          {/* 恢复按钮 */}
+          <button
+            className="btn-icon"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="恢复 (Ctrl+Y)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 7v6h-6" />
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" />
+            </svg>
+          </button>
+          {/* 模板按钮 */}
+          <button
+            className="btn-icon"
+            onClick={onShowTemplateModal}
+            title="加载示例模板"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+              <line x1="3" x2="21" y1="9" y2="9" />
+              <path d="m9 16 3-3 3 3" />
+            </svg>
+          </button>
+          {/* 导入按钮 */}
+          <button
+            className="btn-icon"
+            onClick={() => document.getElementById('editor-file-input').click()}
+            title="导入 Markdown"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+          </button>
+          <input
+            id="editor-file-input"
+            type="file"
+            accept=".md,.markdown,text/markdown"
+            style={{ display: 'none' }}
+            onChange={(e) => onFileImport(e.target.files[0])}
+          />
+          {/* 清空按钮 */}
+          <button className="btn-icon" onClick={onClear} title="清空内容">
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+          </button>
+          <span className="char-count">{charCount} 字符</span>
+        </div>
       </div>
       <div className="editor-wrapper">
         <div className="line-numbers" ref={lineNumbersRef}></div>

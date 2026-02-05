@@ -70,8 +70,18 @@ sequenceDiagram
 `;
 
 export default function App() {
+  // 撤销/重做（作为主要状态，支持持久化）
+  const {
+    value: markdown,
+    setValue: setMarkdown,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    isRestored,
+  } = useUndoRedo(defaultContent, 50, 'markdown-undo-history');
+
   // 状态管理
-  const [markdown, setMarkdown] = useState(defaultContent);
   const [isDarkTheme, setIsDarkTheme] = useLocalStorage(
     'markdown-preview-theme',
     false,
@@ -93,9 +103,6 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // 撤销/重做
-  const { setValue: setUndoValue, undo, redo } = useUndoRedo(defaultContent);
-
   // 滚动同步
   const editorRef = useRef(null);
   const previewRef = useRef(null);
@@ -103,6 +110,11 @@ export default function App() {
 
   // 防抖处理
   const debouncedMarkdown = useDebounce(markdown, 300);
+
+  // 显示 Toast
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+  }, []);
 
   // 从 URL 加载内容
   useEffect(() => {
@@ -120,21 +132,24 @@ export default function App() {
       const decoded = decodeData(data);
       if (decoded) {
         setMarkdown(decoded);
-        setUndoValue(decoded);
         setIsPreviewMode(true);
         showToast('已从 URL 加载内容');
       } else {
         showToast('解码失败，请检查链接', 'error');
       }
     } else {
-      // 从本地存储加载
-      const saved = localStorage.getItem('markdown-preview-content');
-      if (saved) {
-        setMarkdown(saved);
-        setUndoValue(saved);
+      // 从本地存储加载（仅在未从 useUndoRedo 恢复时）
+      if (!isRestored) {
+        const saved = localStorage.getItem('markdown-preview-content');
+        if (saved) {
+          setMarkdown(saved);
+          showToast('已从本地存储恢复内容');
+        }
+      } else {
+        showToast('已从本地存储恢复内容和编辑历史');
       }
     }
-  }, []);
+  }, [showToast, isRestored]);
 
   // 从远程 URL 加载
   const loadFromSource = async (sourceUrl) => {
@@ -149,7 +164,6 @@ export default function App() {
 
       const content = await response.text();
       setMarkdown(content);
-      setUndoValue(content);
       showToast('已从远程 URL 加载内容');
     } catch (error) {
       console.error('加载远程内容失败:', error);
@@ -178,7 +192,6 @@ export default function App() {
 
 您可以手动复制 Markdown 内容到编辑器中。`;
       setMarkdown(errorContent);
-      setUndoValue(errorContent);
       showToast('加载失败，请检查 URL', 'error');
     }
   };
@@ -188,18 +201,12 @@ export default function App() {
     localStorage.setItem('markdown-preview-content', markdown);
   }, [debouncedMarkdown]);
 
-  // 显示 Toast
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type });
-  }, []);
-
   // 处理编辑器内容变化
   const handleEditorChange = useCallback(
     (newValue) => {
       setMarkdown(newValue);
-      setUndoValue(newValue);
     },
-    [setUndoValue],
+    [setMarkdown],
   );
 
   // 处理编辑器滚动
@@ -264,21 +271,19 @@ export default function App() {
     (index) => {
       const template = templates[index];
       setMarkdown(template.content);
-      setUndoValue(template.content);
       setShowTemplateModal(false);
       showToast(`已加载模板：${template.name}`);
     },
-    [setUndoValue],
+    [setMarkdown],
   );
 
   // 清空内容
   const handleClear = useCallback(() => {
     if (confirm('确定要清空所有内容吗？')) {
       setMarkdown('');
-      setUndoValue('');
       showToast('内容已清空');
     }
-  }, [setUndoValue]);
+  }, [setMarkdown]);
 
   // 生成分享链接
   const handleShareLink = useCallback(() => {
@@ -309,6 +314,26 @@ export default function App() {
         prompt('请复制以下链接：', url);
       });
   }, [markdown]);
+
+  // 生成默认文件名
+  const generateFileName = useCallback(
+    (extension) => {
+      // 尝试从 markdown 中提取第一个标题
+      const titleMatch = markdown.match(/^#\s+(.+)$/m);
+      if (titleMatch) {
+        const title = titleMatch[1].trim();
+        // 清理文件名中的非法字符
+        const cleanTitle = title.replace(/[<>:"/\\|?*]/g, '-');
+        return `${cleanTitle}.${extension}`;
+      }
+      // 如果没有标题，使用日期时间
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+      return `markdown-${dateStr}-${timeStr}.${extension}`;
+    },
+    [markdown],
+  );
 
   // 导出 HTML
   const handleExportHtml = useCallback(async () => {
@@ -589,12 +614,12 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'markdown-export.html';
+    a.download = generateFileName('html');
     a.click();
     URL.revokeObjectURL(url);
 
     showToast('HTML 文件已导出');
-  }, [markdown, isDarkTheme, previewWidth]);
+  }, [markdown, isDarkTheme, previewWidth, generateFileName]);
 
   // 导出 Markdown
   const handleExportMarkdown = useCallback(() => {
@@ -608,13 +633,13 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'document.md';
+    a.download = generateFileName('md');
     a.click();
     URL.revokeObjectURL(url);
 
     setShowExportMenu(false);
     showToast('Markdown 文件已导出');
-  }, [markdown]);
+  }, [markdown, generateFileName]);
 
   // 处理文件导入
   const handleFileImport = useCallback(
@@ -625,7 +650,6 @@ export default function App() {
       reader.onload = (e) => {
         const content = e.target.result;
         setMarkdown(content);
-        setUndoValue(content);
         showToast(`已导入文件：${file.name}`);
       };
       reader.onerror = () => {
@@ -633,7 +657,7 @@ export default function App() {
       };
       reader.readAsText(file);
     },
-    [setUndoValue],
+    [setMarkdown],
   );
 
   // 处理拖拽上传
@@ -771,48 +795,6 @@ export default function App() {
               )}
             </svg>
           </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowTemplateModal(true)}
-            title="加载示例模板"
-          >
-            <svg
-              className="icon"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-              <line x1="3" x2="21" y1="9" y2="9" />
-              <path d="m9 16 3-3 3 3" />
-            </svg>
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={handleClear}
-            title="清空内容"
-          >
-            <svg
-              className="icon"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 6h18" />
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-            </svg>
-          </button>
           {/* 导出按钮 */}
           <div className="export-dropdown">
             <button
@@ -832,8 +814,8 @@ export default function App() {
                 strokeLinejoin="round"
               >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" x2="12" y1="15" y2="3" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" x2="12" y1="3" y2="15" />
               </svg>
             </button>
             {showExportMenu && (
@@ -887,28 +869,6 @@ export default function App() {
               </div>
             )}
           </div>
-          {/* 导入按钮 */}
-          <button
-            className="btn btn-secondary"
-            onClick={() => document.getElementById('file-input').click()}
-            title="导入 Markdown"
-          >
-            <svg
-              className="icon"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" x2="12" y1="3" y2="15" />
-            </svg>
-          </button>
           <input
             id="file-input"
             type="file"
@@ -988,6 +948,11 @@ export default function App() {
             onScroll={handleEditorScroll}
             onUndo={undo}
             onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onShowTemplateModal={() => setShowTemplateModal(true)}
+            onClear={handleClear}
+            onFileImport={handleFileImport}
             editorRef={editorRef}
           />
         )}

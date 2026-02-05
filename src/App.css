@@ -176,6 +176,12 @@ body {
   background-color: var(--bg-tertiary);
 }
 
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .btn .icon {
   width: 18px;
   height: 18px;
