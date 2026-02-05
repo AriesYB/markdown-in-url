@@ -2,6 +2,8 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-brightgreen) ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-Deployed-orange) ![Status](https://img.shields.io/badge/Status-Online-success) ![Platform](https://img.shields.io/badge/Platform-Web-lightgrey)
 
+**本项目改为react实现，此分支不再更新*
+
 > 通过 URL 链接分享 Markdown 内容，无需后端服务器
 
 你是否遇到过这种问题，本地编写了Markdown，想快速分享给同事或朋友临时查看，但又想避免使用第三方软件（又卡又需要登录），那么本工具 perfectly 适合你！
