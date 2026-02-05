@@ -14,10 +14,10 @@ permissions:
   pages: write
   id-token: write
 
-# 同一时间只允许一个部署，跳过正在进行的运行和最新排队之间的运行
+# 同一时间只允许一个部署
 concurrency:
   group: 'pages'
-  cancel-in-progress: false
+  cancel-in-progress: true  # 建议改为 true，避免排队
 
 jobs:
   # 构建任务
@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取所有历史，有助于某些依赖
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,18 +36,25 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+        run: npm ci  # 使用 ci 而不是 install，确保 lockfile 一致性
+        # 如果 package-lock.json 有问题才需要删除：
+        # run: |
+        #   rm -rf node_modules
+        #   npm ci
 
       - name: Build with Vite
         run: npm run build
         env:
-          # 设置基础路径为仓库名称
+          # 确保 BASE_URL 被正确设置
           VITE_BASE_URL: /markdown-in-url/
+          # 如果使用其他构建变量也可以在这里设置
+          # NODE_ENV: production
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      - name: 处理 SPA 路由问题（可选）
+        run: |
+          # 为客户端路由创建 404.html 副本
+          cp ./dist/index.html ./dist/404.html
+        # 这个步骤可以解决 GitHub Pages 刷新页面时的 404 问题
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
