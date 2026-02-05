@@ -36,11 +36,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci  # 使用 ci 而不是 install，确保 lockfile 一致性
-        # 如果 package-lock.json 有问题才需要删除：
-        # run: |
-        #   rm -rf node_modules
-        #   npm ci
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Build with Vite
         run: npm run build
