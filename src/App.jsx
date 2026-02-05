@@ -9,6 +9,7 @@ import Preview from './components/Preview';
 import TemplateModal from './components/TemplateModal';
 import Toast from './components/Toast';
 import './App.css';
+import iconSvg from '/img/icon.svg';
 
 // HTML 转义函数
 function escapeHtml(text) {
@@ -722,7 +723,7 @@ export default function App() {
         <div className="header-left">
           <h1 className="logo">
             <img
-              src="/img/icon.svg"
+              src={iconSvg}
               alt="logo"
               width="32"
               height="32"
