@@ -5,5 +5,5 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   // GitHub Pages 部署配置：设置为仓库名称
-  base: '/markdown-in-url/',
+  base: '/',
 });
