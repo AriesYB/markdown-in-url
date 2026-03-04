@@ -156,11 +156,97 @@
   background-color: var(--bg-secondary, #161b22);
 }
 
-.preview img {
+/* 图片包装器 */
+.markdown-image-wrapper {
+  margin: 24px 0;
+  text-align: center;
+}
+
+.markdown-image-wrapper img {
   max-width: 100%;
   height: auto;
   border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  display: inline-block;
+}
+
+.markdown-image-wrapper img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* 图片说明文字 */
+.image-caption {
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: var(--text-secondary, #8b949e);
+  font-style: italic;
+}
+
+/* 图片加载失败提示 */
+.image-error {
+  padding: 20px;
+  background-color: var(--bg-secondary, #161b22);
+  border: 1px solid var(--error-color, #f85149);
+  border-radius: 8px;
+  color: var(--error-color, #f85149);
+  text-align: center;
+}
+
+.image-error small {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.8em;
+  color: var(--text-secondary, #8b949e);
+  word-break: break-all;
+}
+
+/* 图片预览模态框 */
+.image-preview-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+
+.image-preview-modal img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.image-preview-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.image-preview-close:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .preview hr {

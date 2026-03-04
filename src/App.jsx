@@ -2,11 +2,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useDebounce } from './hooks/useDebounce';
+import { useUploadManager } from './hooks/useUploadManager';
 import { encodeData, decodeData } from './utils/encoding';
+import { exportMarkdownAsZip, hasBase64Images } from './utils/exportHelper';
 import { templates } from './data/templates';
+import {
+  createContentShortUrl,
+  isCloudflareConfigured,
+  loadContentFromShortUrl,
+} from './utils/cloudflareAPI';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import TemplateModal from './components/TemplateModal';
+import ImageUploadSettings from './components/ImageUploadSettings';
+import UploadProgress from './components/UploadProgress';
 import Toast from './components/Toast';
 import './App.css';
 import iconSvg from '/img/icon.svg';
@@ -101,6 +110,8 @@ export default function App() {
   );
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showImageUploadSettings, setShowImageUploadSettings] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -112,6 +123,9 @@ export default function App() {
   // 防抖处理
   const debouncedMarkdown = useDebounce(markdown, 300);
 
+  // 图床上传管理
+  const uploadManager = useUploadManager();
+
   // 显示 Toast
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -122,10 +136,24 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const data = params.get('data');
     const source = params.get('source');
+    const content = params.get('content');
 
     if (source) {
       loadFromSource(source);
       setIsPreviewMode(true);
+      return;
+    }
+
+    if (content) {
+      // 从短链接重定向来的内容
+      try {
+        const decoded = decodeURIComponent(content);
+        setMarkdown(decoded);
+        setIsPreviewMode(true);
+        showToast('已从短链接加载内容');
+      } catch (error) {
+        showToast('加载失败，请检查链接', 'error');
+      }
       return;
     }
 
@@ -314,7 +342,40 @@ export default function App() {
       .catch(() => {
         prompt('请复制以下链接：', url);
       });
-  }, [markdown]);
+  }, [markdown, showToast]);
+
+  // 生成短链接
+  const handleShortUrl = useCallback(async () => {
+    const trimmed = markdown.trim();
+    if (!trimmed) {
+      showToast('请先输入 Markdown 内容', 'error');
+      return;
+    }
+
+    // 检查是否配置了公共图床服务
+    if (!isCloudflareConfigured()) {
+      showToast('请先在图床设置中配置公共图床服务', 'error');
+      setShowImageUploadSettings(true);
+      return;
+    }
+
+    try {
+      const longUrl = `${window.location.origin}${window.location.pathname}?content=${encodeURIComponent(trimmed)}`;
+      const shortUrl = await createContentShortUrl(trimmed, 24); // 24小时有效期
+
+      navigator.clipboard
+        .writeText(shortUrl)
+        .then(() => {
+          showToast(`短链接已复制到剪贴板！(24小时有效)`);
+        })
+        .catch(() => {
+          prompt('请复制以下短链接：', shortUrl);
+        });
+    } catch (error) {
+      console.error('生成短链接失败:', error);
+      showToast(`生成短链接失败: ${error.message}`, 'error');
+    }
+  }, [markdown, showToast]);
 
   // 生成默认文件名
   const generateFileName = useCallback(
@@ -623,24 +684,34 @@ export default function App() {
   }, [markdown, isDarkTheme, previewWidth, generateFileName]);
 
   // 导出 Markdown
-  const handleExportMarkdown = useCallback(() => {
+  const handleExportMarkdown = useCallback(async () => {
     const trimmed = markdown.trim();
     if (!trimmed) {
       showToast('没有可导出的内容', 'error');
       return;
     }
 
-    const blob = new Blob([trimmed], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = generateFileName('md');
-    a.click();
-    URL.revokeObjectURL(url);
+    // 检查是否包含 base64 图片
+    if (hasBase64Images(trimmed)) {
+      // 导出为压缩包
+      const fileName = generateFileName('md').replace('.md', '');
+      await exportMarkdownAsZip(trimmed, fileName);
+      setShowExportMenu(false);
+      showToast('已导出为压缩包（包含图片文件）');
+    } else {
+      // 普通导出
+      const blob = new Blob([trimmed], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generateFileName('md');
+      a.click();
+      URL.revokeObjectURL(url);
 
-    setShowExportMenu(false);
-    showToast('Markdown 文件已导出');
-  }, [markdown, generateFileName]);
+      setShowExportMenu(false);
+      showToast('Markdown 文件已导出');
+    }
+  }, [markdown, generateFileName, showToast]);
 
   // 处理文件导入
   const handleFileImport = useCallback(
@@ -877,44 +948,96 @@ export default function App() {
             style={{ display: 'none' }}
             onChange={(e) => handleFileImport(e.target.files[0])}
           />
-          <button
-            className="btn btn-secondary"
-            onClick={handleShareLink}
-            title="生成并复制分享链接"
-          >
-            <svg
-              className="icon"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="url(#linkGradient)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {/* 分享菜单 */}
+          <div className="export-dropdown">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowShareMenu(!showShareMenu)}
+              title="分享"
             >
-              <defs>
-                <linearGradient
-                  id="linkGradient"
-                  x1="0%"
-                  y1="0%"
-                  x2="100%"
-                  y2="100%"
+                          <svg
+                            className="icon"
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="url(#linkGradient)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <defs>
+                              <linearGradient
+                                id="linkGradient"
+                                x1="0%"
+                                y1="0%"
+                                x2="100%"
+                                y2="100%"
+                              >
+                                <stop
+                                  offset="0%"
+                                  style={{ stopColor: '#22d3ee', stopOpacity: 1 }}
+                                />
+                                <stop
+                                  offset="100%"
+                                  style={{ stopColor: '#3b82f6', stopOpacity: 1 }}
+                                />
+                              </linearGradient>
+                            </defs>
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                          </svg>
+            </button>
+            {showShareMenu && (
+              <div className="export-menu">
+                <button
+                  className="export-menu-item"
+                  onClick={() => {
+                    handleShareLink();
+                    setShowShareMenu(false);
+                  }}
                 >
-                  <stop
-                    offset="0%"
-                    style={{ stopColor: '#22d3ee', stopOpacity: 1 }}
-                  />
-                  <stop
-                    offset="100%"
-                    style={{ stopColor: '#3b82f6', stopOpacity: 1 }}
-                  />
-                </linearGradient>
-              </defs>
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          </button>
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                  永久长链接
+                </button>
+                <button
+                  className="export-menu-item"
+                  onClick={() => {
+                    handleShortUrl();
+                    setShowShareMenu(false);
+                  }}
+                >
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  临时短链接（24小时）
+                </button>
+              </div>
+            )}
+          </div>
           <a
             href="https://github.com/AriesYB/markdown-in-url"
             target="_blank"
@@ -955,6 +1078,8 @@ export default function App() {
             onClear={handleClear}
             onFileImport={handleFileImport}
             editorRef={editorRef}
+            uploadManager={uploadManager}
+            onShowImageUploadSettings={() => setShowImageUploadSettings(true)}
           />
         )}
 
@@ -984,6 +1109,21 @@ export default function App() {
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
         onSelect={handleLoadTemplate}
+      />
+
+      {/* Image Upload Settings Modal */}
+      <ImageUploadSettings
+        isOpen={showImageUploadSettings}
+        onClose={() => setShowImageUploadSettings(false)}
+        onConfigChange={() => {
+          // 配置更改后可以刷新相关状态
+        }}
+      />
+
+      {/* Upload Progress */}
+      <UploadProgress
+        uploads={uploadManager.uploads}
+        onCancelUpload={uploadManager.cancelUpload}
       />
     </div>
   );

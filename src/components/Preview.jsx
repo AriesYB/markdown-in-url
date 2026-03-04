@@ -40,7 +40,12 @@ export default function Preview({
 }) {
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const contentRef = useRef(null);
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+  };
 
   // 初始化 Mermaid
   useEffect(() => {
@@ -75,13 +80,17 @@ export default function Preview({
       return `<pre><code class="language-${language || 'plaintext'}">${escapeHtml(code)}</code></pre>`;
     };
 
+    // 自定义图片渲染器 - 使用默认渲染器并添加包装
+    const defaultImage = new marked.Renderer().image;
+    renderer.image = function (href, title, text) {
+      const defaultHtml = defaultImage.call(this, href, title, text);
+      return `<div class="markdown-image-wrapper">${defaultHtml}</div>`;
+    };
+
     marked.setOptions({
       renderer,
       breaks: true,
       gfm: true,
-      mangle: false,
-      headerIds: false,
-      pedantic: false,
     });
 
     // 扩展tokenizer以支持中文标点符号的加粗
@@ -167,6 +176,14 @@ export default function Preview({
     contentRef.current.querySelectorAll('pre code').forEach((block) => {
       hljs.highlightElement(block);
     });
+
+    // 添加图片点击事件监听器
+    const images = contentRef.current.querySelectorAll('.markdown-image');
+    images.forEach((img) => {
+      img.addEventListener('click', () => {
+        setPreviewImage(img.src);
+      });
+    });
   }, [markdown, isDarkTheme]);
 
   // 处理滚动
@@ -244,6 +261,30 @@ export default function Preview({
           />
         </div>
       </div>
+
+      {/* 图片预览模态框 */}
+      {previewImage && (
+        <div className="image-preview-modal" onClick={closeImagePreview}>
+          <button className="image-preview-close" onClick={closeImagePreview}>
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <img
+            src={previewImage}
+            alt="预览"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

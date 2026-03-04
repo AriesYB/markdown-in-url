@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { markdownSuggestions } from '../data/autocomplete';
+import {
+  uploadImage,
+  fileToBase64,
+  isImageUploadConfigured,
+} from '../utils/imageUpload';
 import Autocomplete from './Autocomplete';
 import './Editor.css';
 
@@ -15,6 +20,8 @@ export default function Editor({
   onClear,
   onFileImport,
   editorRef,
+  uploadManager,
+  onShowImageUploadSettings,
 }) {
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
@@ -294,6 +301,215 @@ export default function Editor({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [autocomplete.visible]);
 
+  // 粘贴图片处理
+  const handlePaste = useCallback(
+    (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      const items = clipboardData.items;
+      if (!items) return;
+
+      // 查找剪贴板中的图片
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault();
+
+          // 检查图床是否已设置
+          if (!isImageUploadConfigured()) {
+            onShowImageUploadSettings?.();
+            return;
+          }
+
+          const file = item.getAsFile();
+          if (!file) return;
+
+          const textarea = textareaRef.current;
+          if (!textarea) return;
+
+          const cursorPosition = textarea.selectionStart;
+          const textBeforeCursor = value.substring(0, cursorPosition);
+          const textAfterCursor = value.substring(cursorPosition);
+
+          // 检查光标前是否有换行，如果没有则添加
+          const needsNewline =
+            textBeforeCursor && !textBeforeCursor.endsWith('\n');
+          const prefix = needsNewline ? '\n' : '';
+
+          // 使用图床上传
+          if (uploadManager) {
+            const uploadId = uploadManager.addUpload(file.name || '粘贴图片');
+
+            uploadImage(file, (loaded, total) => {
+              uploadManager.updateUploadProgress(uploadId, loaded, total);
+            })
+              .then(({ url, method, markdown }) => {
+                // 如果是 Cloudflare Workers API，直接使用返回的 markdown
+                let imageMarkdown;
+                if (method === 'cf-worker' && markdown) {
+                  imageMarkdown = `${prefix}${markdown}`;
+                } else {
+                  imageMarkdown = `${prefix}![粘贴图片](${url})`;
+                }
+                const newText =
+                  textBeforeCursor + imageMarkdown + textAfterCursor;
+                onChange(newText);
+                uploadManager.completeUpload(uploadId, true);
+
+                // 设置光标位置到图片后面
+                const newCursorPosition = cursorPosition + imageMarkdown.length;
+                textarea.selectionStart = textarea.selectionEnd =
+                  newCursorPosition;
+                textarea.focus();
+              })
+              .catch((error) => {
+                // 上传失败，回退到 base64
+                console.warn('图床上传失败，使用 base64:', error);
+                fileToBase64(file).then((base64) => {
+                  const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
+                  const newText =
+                    textBeforeCursor + imageMarkdown + textAfterCursor;
+                  onChange(newText);
+                  uploadManager.completeUpload(
+                    uploadId,
+                    false,
+                    '已回退到 Base64',
+                  );
+
+                  // 设置光标位置到图片后面
+                  const newCursorPosition =
+                    cursorPosition + imageMarkdown.length;
+                  textarea.selectionStart = textarea.selectionEnd =
+                    newCursorPosition;
+                  textarea.focus();
+                });
+              });
+          } else {
+            // 没有上传管理器，直接使用 base64
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const base64 = event.target?.result;
+              if (!base64) return;
+
+              const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
+              const newText =
+                textBeforeCursor + imageMarkdown + textAfterCursor;
+
+              onChange(newText);
+
+              // 设置光标位置到图片后面
+              const newCursorPosition = cursorPosition + imageMarkdown.length;
+              textarea.selectionStart = textarea.selectionEnd =
+                newCursorPosition;
+              textarea.focus();
+            };
+            reader.readAsDataURL(file);
+          }
+          return;
+        }
+      }
+    },
+    [value, onChange, uploadManager, onShowImageUploadSettings],
+  );
+
+  // 图片上传处理
+  const imageInputRef = useRef(null);
+  const handleImageUploadClick = () => {
+    imageInputRef.current?.click();
+  };
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件');
+      return;
+    }
+
+    // 检查图床是否已设置
+    if (!isImageUploadConfigured()) {
+      onShowImageUploadSettings?.();
+      // 重置 input
+      e.target.value = '';
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPosition = textarea.selectionStart;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const textAfterCursor = value.substring(cursorPosition);
+
+    // 检查光标前是否有换行，如果没有则添加
+    const needsNewline = textBeforeCursor && !textBeforeCursor.endsWith('\n');
+    const prefix = needsNewline ? '\n' : '';
+
+    // 使用图床上传
+    if (uploadManager) {
+      const uploadId = uploadManager.addUpload(file.name);
+
+      uploadImage(file, (loaded, total) => {
+        uploadManager.updateUploadProgress(uploadId, loaded, total);
+      })
+        .then(({ url, method, markdown }) => {
+          // 如果是 Cloudflare Workers API，直接使用返回的 markdown
+          let imageMarkdown;
+          if (method === 'cf-worker' && markdown) {
+            imageMarkdown = `${prefix}${markdown}`;
+          } else {
+            imageMarkdown = `${prefix}![${file.name}](${url})`;
+          }
+          const newText = textBeforeCursor + imageMarkdown + textAfterCursor;
+          onChange(newText);
+          uploadManager.completeUpload(uploadId, true);
+
+          // 设置光标位置到图片后面
+          const newCursorPosition = cursorPosition + imageMarkdown.length;
+          textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
+          textarea.focus();
+        })
+        .catch((error) => {
+          // 上传失败，回退到 base64
+          console.warn('图床上传失败，使用 base64:', error);
+          fileToBase64(file).then((base64) => {
+            const imageMarkdown = `${prefix}![${file.name}](${base64})`;
+            const newText = textBeforeCursor + imageMarkdown + textAfterCursor;
+            onChange(newText);
+            uploadManager.completeUpload(uploadId, false, '已回退到 Base64');
+
+            // 设置光标位置到图片后面
+            const newCursorPosition = cursorPosition + imageMarkdown.length;
+            textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
+            textarea.focus();
+          });
+        });
+    } else {
+      // 没有上传管理器，直接使用 base64
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result;
+        if (!base64) return;
+
+        const imageMarkdown = `${prefix}![${file.name}](${base64})`;
+        const newText = textBeforeCursor + imageMarkdown + textAfterCursor;
+
+        onChange(newText);
+
+        // 设置光标位置到图片后面
+        const newCursorPosition = cursorPosition + imageMarkdown.length;
+        textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
+        textarea.focus();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 重置 input 以便可以重复选择同一文件
+    e.target.value = '';
+  };
+
   const charCount = value.length;
 
   return (
@@ -385,6 +601,54 @@ export default function Editor({
               <line x1="12" x2="12" y1="15" y2="3" />
             </svg>
           </button>
+          {/* 图片上传按钮 */}
+          <button
+            className="btn-icon"
+            onClick={handleImageUploadClick}
+            title="插入图片"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+            </svg>
+          </button>
+          {/* 图床设置按钮 */}
+          <button
+            className="btn-icon"
+            onClick={onShowImageUploadSettings}
+            title="图床设置"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageFileChange}
+          />
           <input
             id="editor-file-input"
             type="file"
@@ -421,6 +685,7 @@ export default function Editor({
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
+          onPaste={handlePaste}
           placeholder="在此输入 Markdown 内容..."
           spellCheck={false}
         />
