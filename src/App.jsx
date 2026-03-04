@@ -122,6 +122,36 @@ export default function App() {
   const previewRef = useRef(null);
   const isSyncingScroll = useRef(false);
 
+  // 菜单 refs
+  const exportMenuRef = useRef(null);
+  const shareMenuRef = useRef(null);
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(event.target)
+      ) {
+        setShowExportMenu(false);
+      }
+      if (
+        shareMenuRef.current &&
+        !shareMenuRef.current.contains(event.target)
+      ) {
+        setShowShareMenu(false);
+      }
+    };
+
+    if (showExportMenu || showShareMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportMenu, showShareMenu]);
+
   // 防抖处理
   const debouncedMarkdown = useDebounce(markdown, 300);
 
@@ -927,7 +957,7 @@ export default function App() {
             </svg>
           </button>
           {/* 导出按钮 */}
-          <div className="export-dropdown">
+          <div className="export-dropdown" ref={exportMenuRef}>
             <button
               className="btn btn-secondary"
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -1008,7 +1038,7 @@ export default function App() {
             onChange={(e) => handleFileImport(e.target.files[0])}
           />
           {/* 分享菜单 */}
-          <div className="export-dropdown">
+          <div className="export-dropdown" ref={shareMenuRef}>
             <button
               className="btn btn-secondary"
               onClick={() => setShowShareMenu(!showShareMenu)}
