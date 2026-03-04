@@ -270,6 +270,41 @@
   height: auto;
 }
 
+/* 修复黑夜主题下 mermaid 文字颜色 */
+.preview .mermaid .nodeText,
+.preview .mermaid .edgeLabel,
+.preview .mermaid .clusterLabel,
+.preview .mermaid .label,
+.preview .mermaid text {
+  fill: var(--text-primary, #e6edf3) !important;
+  color: var(--text-primary, #e6edf3) !important;
+}
+
+/* 修复 mermaid 节点背景和边框 */
+.preview .mermaid .node rect,
+.preview .mermaid .node circle,
+.preview .mermaid .node ellipse,
+.preview .mermaid .node polygon,
+.preview .mermaid .node path {
+  fill: var(--bg-secondary, #161b22) !important;
+  stroke: var(--border-color, #30363d) !important;
+}
+
+/* 修复 mermaid 连线颜色 */
+.preview .mermaid .edgePath path,
+.preview .mermaid .edgePath path.flowchart-link {
+  stroke: var(--text-secondary, #8b949e) !important;
+}
+
+/* 修复 mermaid 箭头颜色 */
+.preview .mermaid .marker {
+  fill: var(--text-secondary, #8b949e) !important;
+}
+
+.preview .mermaid .arrowheadPath {
+  fill: var(--text-secondary, #8b949e) !important;
+}
+
 /* 宽度控制样式 */
 .width-control {
   display: flex;

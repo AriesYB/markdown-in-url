@@ -14,6 +14,7 @@ import {
   saveCloudflareConfig,
   clearCloudflareConfig,
   isCloudflareConfigured,
+  testConnection,
 } from '../utils/cloudflareAPI';
 import './ImageUploadSettings.css';
 
@@ -87,15 +88,8 @@ export default function ImageUploadSettings({
       config.customConfig = customConfig;
     }
     if (mode === 'cf-worker') {
-      // 保存 Cloudflare Workers API 配置
-      if (!cfWorkerUrl || cfWorkerUrl === 'https://your-worker.workers.dev') {
-        setTestResult({
-          type: 'error',
-          message: '请输入有效的 Cloudflare Workers API 地址',
-        });
-        return;
-      }
-      saveCloudflareConfig(cfWorkerUrl);
+      // 公共图床服务，使用默认配置
+      saveCloudflareConfig('https://md.ntrbiss.top');
     }
     saveImageUploadConfig(config);
     onConfigChange?.();
@@ -172,26 +166,24 @@ export default function ImageUploadSettings({
       setTestResult(null);
 
       try {
-        // 测试创建短链接
-        const testUrl = 'https://example.com/test';
-        const response = await fetch(`${cfWorkerUrl}/shorten`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: testUrl, ttl: 1 }),
-        });
+        // 先保存配置以便测试
+        saveCloudflareConfig(cfWorkerUrl);
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+        // 使用 testConnection 函数测试连接
+        const result = await testConnection();
 
-        const result = await response.json();
         if (result.success) {
           setTestResult({
             type: 'success',
-            message: '配置测试成功！Cloudflare Workers API 连接正常。',
+            message:
+              result.message ||
+              '配置测试成功！Cloudflare Workers API 连接正常。',
           });
         } else {
-          throw new Error(result.message || 'API 返回错误');
+          setTestResult({
+            type: 'error',
+            message: result.message || '配置测试失败',
+          });
         }
       } catch (error) {
         setTestResult({
@@ -278,35 +270,6 @@ export default function ImageUploadSettings({
             <div className="setting-section">
               <h3>公共图床服务</h3>
               <div className="config-form">
-                <div className="form-group">
-                  <label>
-                    API 地址 <span className="required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="https://md.ntrbiss.top"
-                    value={cfWorkerUrl}
-                    onChange={(e) => setCfWorkerUrl(e.target.value)}
-                  />
-                  <small>
-                    公共图床服务的 API 地址，用于图床上传和短链接服务
-                  </small>
-                </div>
-
-                <button
-                  className="btn-test"
-                  onClick={handleTest}
-                  disabled={isTesting}
-                >
-                  {isTesting ? '测试中...' : '测试连接'}
-                </button>
-
-                {testResult && (
-                  <div className={`test-result ${testResult.type}`}>
-                    {testResult.message}
-                  </div>
-                )}
-
                 <div className="cf-worker-info">
                   <h4>功能说明</h4>
                   <ul>

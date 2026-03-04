@@ -7,9 +7,10 @@ import { encodeData, decodeData } from './utils/encoding';
 import { exportMarkdownAsZip, hasBase64Images } from './utils/exportHelper';
 import { templates } from './data/templates';
 import {
-  createContentShortUrl,
+  createContentShortCode,
+  getCloudflareConfig,
   isCloudflareConfigured,
-  loadContentFromShortUrl,
+  loadContentFromShortCode,
 } from './utils/cloudflareAPI';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
@@ -133,6 +134,16 @@ export default function App() {
 
   // 从 URL 加载内容
   useEffect(() => {
+    // 检查是否是短链接路径 (例如: /s/aB3xY9)
+    const pathname = window.location.pathname;
+    const shortCodeMatch = pathname.match(/^\/s\/([a-zA-Z0-9]+)$/);
+
+    if (shortCodeMatch) {
+      const code = shortCodeMatch[1];
+      loadFromShortCode(code);
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const data = params.get('data');
     const source = params.get('source');
@@ -178,7 +189,7 @@ export default function App() {
         showToast('已从本地存储恢复内容和编辑历史');
       }
     }
-  }, [showToast, isRestored]);
+  }, [showToast, isRestored, loadFromShortCode, loadFromSource]);
 
   // 从远程 URL 加载
   const loadFromSource = async (sourceUrl) => {
@@ -222,6 +233,42 @@ export default function App() {
 您可以手动复制 Markdown 内容到编辑器中。`;
       setMarkdown(errorContent);
       showToast('加载失败，请检查 URL', 'error');
+    }
+  };
+
+  // 从短码加载内容
+  const loadFromShortCode = async (code) => {
+    try {
+      showToast('正在从短链接加载内容...', 'success');
+      const content = await loadContentFromShortCode(code);
+      setMarkdown(content);
+      setIsPreviewMode(true);
+      showToast('已从短链接加载内容');
+    } catch (error) {
+      console.error('从短码加载内容失败:', error);
+      const errorContent = `# 加载失败
+
+无法从短链接加载内容。
+
+**错误信息：** ${error.message}
+
+## 可能的原因
+
+1. 短链接已过期
+2. 短链接不存在
+3. 网络连接问题
+
+## 解决方案
+
+- 确认短链接是否正确
+- 检查短链接是否已过期
+- 检查网络连接
+
+---
+
+您可以手动复制 Markdown 内容到编辑器中。`;
+      setMarkdown(errorContent);
+      showToast('加载失败，请检查短链接', 'error');
     }
   };
 
@@ -360,8 +407,9 @@ export default function App() {
     }
 
     try {
-      const longUrl = `${window.location.origin}${window.location.pathname}?content=${encodeURIComponent(trimmed)}`;
-      const shortUrl = await createContentShortUrl(trimmed, 24); // 24小时有效期
+      const code = await createContentShortCode(trimmed, 24); // 24小时有效期
+      const config = getCloudflareConfig();
+      const shortUrl = `${config.baseUrl}/s/${code}`;
 
       navigator.clipboard
         .writeText(shortUrl)
@@ -955,38 +1003,38 @@ export default function App() {
               onClick={() => setShowShareMenu(!showShareMenu)}
               title="分享"
             >
-                          <svg
-                            className="icon"
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="none"
-                            stroke="url(#linkGradient)"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <defs>
-                              <linearGradient
-                                id="linkGradient"
-                                x1="0%"
-                                y1="0%"
-                                x2="100%"
-                                y2="100%"
-                              >
-                                <stop
-                                  offset="0%"
-                                  style={{ stopColor: '#22d3ee', stopOpacity: 1 }}
-                                />
-                                <stop
-                                  offset="100%"
-                                  style={{ stopColor: '#3b82f6', stopOpacity: 1 }}
-                                />
-                              </linearGradient>
-                            </defs>
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                          </svg>
+              <svg
+                className="icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="url(#linkGradient)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <defs>
+                  <linearGradient
+                    id="linkGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop
+                      offset="0%"
+                      style={{ stopColor: '#22d3ee', stopOpacity: 1 }}
+                    />
+                    <stop
+                      offset="100%"
+                      style={{ stopColor: '#3b82f6', stopOpacity: 1 }}
+                    />
+                  </linearGradient>
+                </defs>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
             </button>
             {showShareMenu && (
               <div className="export-menu">

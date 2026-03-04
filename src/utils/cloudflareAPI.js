@@ -56,7 +56,45 @@ export function clearCloudflareConfig() {
  */
 export function isCloudflareConfigured() {
   const config = getCloudflareConfig();
-  return config.baseUrl !== API_CONFIG.baseUrl;
+  // 只要配置存在且 baseUrl 有效，就认为已配置
+  return config && config.baseUrl && config.baseUrl.length > 0;
+}
+
+/**
+ * 测试与 Worker 的连接
+ * @returns {Promise<Object>} 测试结果
+ */
+export async function testConnection() {
+  const config = getCloudflareConfig();
+
+  try {
+    const response = await fetch(`${config.baseUrl}/`, {
+      method: 'GET',
+      headers: {
+        origin: config.baseUrl,
+        referer: `${config.baseUrl}/`,
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: `连接失败: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      message: result.message || '连接成功',
+      data: result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `连接失败: ${error.message}`,
+    };
+  }
 }
 
 /**
@@ -71,6 +109,10 @@ export async function uploadImage(file) {
 
   const response = await fetch(`${config.baseUrl}/upload`, {
     method: 'POST',
+    headers: {
+      origin: config.baseUrl,
+      referer: `${config.baseUrl}/`,
+    },
     body: formData,
   });
 
@@ -89,15 +131,15 @@ export async function uploadImage(file) {
 }
 
 /**
- * 创建短 URL
- * @param {string} url - 原始 URL
+ * 创建短码（字符串压缩）
+ * @param {string} data - 需要压缩的字符串数据
  * @param {number} ttl - 有效期（小时），不传则永久有效
- * @returns {Promise<Object>} 短链接结果
+ * @returns {Promise<Object>} 短码结果
  */
-export async function createShortUrl(url, ttl) {
+export async function createShortCode(data, ttl) {
   const config = getCloudflareConfig();
 
-  const requestBody = { url };
+  const requestBody = { data };
   if (ttl !== undefined && ttl !== null) {
     requestBody.ttl = ttl;
   }
@@ -106,43 +148,45 @@ export async function createShortUrl(url, ttl) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      origin: config.baseUrl,
+      referer: `${config.baseUrl}/`,
     },
     body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || `创建短链接失败: ${response.status}`);
+    throw new Error(error.message || `创建短码失败: ${response.status}`);
   }
 
   const result = await response.json();
 
   if (!result.success) {
-    throw new Error(result.message || '创建短链接失败');
+    throw new Error(result.message || '创建短码失败');
   }
 
   return result;
 }
 
 /**
- * 获取原始 URL（通过短码）
+ * 获取原始数据（通过短码）
  * @param {string} code - 短码
- * @returns {Promise<Object>} 原始链接结果
+ * @returns {Promise<Object>} 原始数据结果
  */
-export async function getOriginalUrl(code) {
+export async function getOriginalData(code) {
   const config = getCloudflareConfig();
 
   const response = await fetch(`${config.baseUrl}/shorten/${code}`);
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || `获取原始链接失败: ${response.status}`);
+    throw new Error(error.message || `获取原始数据失败: ${response.status}`);
   }
 
   const result = await response.json();
 
   if (!result.success) {
-    throw new Error(result.message || '获取原始链接失败');
+    throw new Error(result.message || '获取原始数据失败');
   }
 
   return result;
@@ -165,31 +209,24 @@ export function extractShortCode(shortUrl) {
 }
 
 /**
- * 创建当前内容的短链接
+ * 创建当前内容的短码
  * @param {string} content - Markdown 内容
  * @param {number} ttl - 有效期（小时）
- * @returns {Promise<string>} 短链接 URL
+ * @returns {Promise<string>} 短码
  */
-export async function createContentShortUrl(content, ttl = 24) {
-  const longUrl = `${window.location.origin}?content=${encodeURIComponent(content)}`;
-  const result = await createShortUrl(longUrl, ttl);
-  return result.shortUrl;
+export async function createContentShortCode(content, ttl = 24) {
+  const result = await createShortCode(content, ttl);
+  return result.code;
 }
 
 /**
- * 从短链接加载内容
- * @param {string} shortUrl - 短链接 URL
+ * 从短码加载内容
+ * @param {string} code - 短码
  * @returns {Promise<string>} Markdown 内容
  */
-export async function loadContentFromShortUrl(shortUrl) {
-  const code = extractShortCode(shortUrl);
-  if (!code) {
-    throw new Error('无效的短链接');
-  }
-
-  const result = await getOriginalUrl(code);
-  const url = new URL(result.originalUrl);
-  return url.searchParams.get('content') || '';
+export async function loadContentFromShortCode(code) {
+  const result = await getOriginalData(code);
+  return result.data;
 }
 
 /**
