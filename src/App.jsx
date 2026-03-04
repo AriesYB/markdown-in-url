@@ -132,6 +132,90 @@ export default function App() {
     setToast({ message, type });
   }, []);
 
+  // 从远程 URL 加载
+  const loadFromSource = useCallback(
+    async (sourceUrl) => {
+      try {
+        showToast('正在加载远程内容...', 'success');
+
+        const response = await fetch(sourceUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const content = await response.text();
+        setMarkdown(content);
+        showToast('已从远程 URL 加载内容');
+      } catch (error) {
+        console.error('加载远程内容失败:', error);
+        const errorContent = `# 加载失败
+
+无法从远程 URL 加载内容。
+
+**错误信息：** ${error.message}
+
+## 可能的原因
+
+1. 远程 URL 不存在或无法访问
+2. 网络连接问题
+3. CORS 限制
+
+## 解决方案
+
+- 确认 URL 是否正确
+- 检查网络连接
+- 确认远程服务器允许跨域访问
+
+---
+
+您可以手动复制 Markdown 内容到编辑器中。`;
+        setMarkdown(errorContent);
+        showToast('加载失败，请检查链接', 'error');
+      }
+    },
+    [showToast],
+  );
+
+  // 从短码加载内容
+  const loadFromShortCode = useCallback(
+    async (code) => {
+      try {
+        showToast('正在从短链接加载内容...', 'success');
+        const content = await loadContentFromShortCode(code);
+        setMarkdown(content);
+        setIsPreviewMode(true);
+        showToast('已从短链接加载内容');
+      } catch (error) {
+        console.error('从短码加载内容失败:', error);
+        const errorContent = `# 加载失败
+
+无法从短链接加载内容。
+
+**错误信息：** ${error.message}
+
+## 可能的原因
+
+1. 短链接已过期
+2. 短链接不存在
+3. 网络连接问题
+
+## 解决方案
+
+- 确认短链接是否正确
+- 检查短链接是否已过期
+- 检查网络连接
+
+---
+
+您可以手动复制 Markdown 内容到编辑器中。`;
+        setMarkdown(errorContent);
+        showToast('加载失败，请检查短链接', 'error');
+      }
+    },
+    [showToast],
+  );
+
   // 从 URL 加载内容
   useEffect(() => {
     // 检查是否是短链接路径 (例如: /s/aB3xY9)
@@ -190,87 +274,6 @@ export default function App() {
       }
     }
   }, [showToast, isRestored, loadFromShortCode, loadFromSource]);
-
-  // 从远程 URL 加载
-  const loadFromSource = async (sourceUrl) => {
-    try {
-      showToast('正在加载远程内容...', 'success');
-
-      const response = await fetch(sourceUrl);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const content = await response.text();
-      setMarkdown(content);
-      showToast('已从远程 URL 加载内容');
-    } catch (error) {
-      console.error('加载远程内容失败:', error);
-      const errorContent = `# 加载失败
-
-无法从以下 URL 加载内容：
-
-\`${sourceUrl}\`
-
-**错误信息：** ${error.message}
-
-## 可能的原因
-
-1. URL 不正确或文件不存在
-2. 服务器不支持 CORS（跨域资源共享）
-3. 网络连接问题
-
-## 解决方案
-
-- 确认 URL 是否正确
-- 确保服务器允许跨域访问（CORS）
-- 对于 GitHub 文件，使用 raw.githubusercontent.com 域名
-- 检查网络连接
-
----
-
-您可以手动复制 Markdown 内容到编辑器中。`;
-      setMarkdown(errorContent);
-      showToast('加载失败，请检查 URL', 'error');
-    }
-  };
-
-  // 从短码加载内容
-  const loadFromShortCode = async (code) => {
-    try {
-      showToast('正在从短链接加载内容...', 'success');
-      const content = await loadContentFromShortCode(code);
-      setMarkdown(content);
-      setIsPreviewMode(true);
-      showToast('已从短链接加载内容');
-    } catch (error) {
-      console.error('从短码加载内容失败:', error);
-      const errorContent = `# 加载失败
-
-无法从短链接加载内容。
-
-**错误信息：** ${error.message}
-
-## 可能的原因
-
-1. 短链接已过期
-2. 短链接不存在
-3. 网络连接问题
-
-## 解决方案
-
-- 确认短链接是否正确
-- 检查短链接是否已过期
-- 检查网络连接
-
----
-
-您可以手动复制 Markdown 内容到编辑器中。`;
-      setMarkdown(errorContent);
-      showToast('加载失败，请检查短链接', 'error');
-    }
-  };
 
   // 保存到本地存储
   useEffect(() => {
