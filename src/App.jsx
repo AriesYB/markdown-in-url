@@ -13,6 +13,11 @@ import {
   loadContentFromShortCode,
   API_CONFIG,
 } from './utils/cloudflareAPI';
+import {
+  getShortLinkConfig,
+  cacheShortLinkContent,
+  getCachedShortLinkContent,
+} from './components/ImageUploadSettings';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import TemplateModal from './components/TemplateModal';
@@ -159,9 +164,12 @@ export default function App() {
   const uploadManager = useUploadManager();
 
   // 显示 Toast
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type });
-  }, []);
+  const showToast = useCallback(
+    (message, type = 'success', duration = 3000) => {
+      setToast({ message, type, duration });
+    },
+    [],
+  );
 
   // 从远程 URL 加载
   const loadFromSource = useCallback(
@@ -214,11 +222,25 @@ export default function App() {
       try {
         showToast('正在从短链接加载内容...', 'success');
         const content = await loadContentFromShortCode(code);
+
+        // 缓存内容到本地存储
+        cacheShortLinkContent(code, content);
+
         setMarkdown(content);
         setIsPreviewMode(true);
         showToast('已从短链接加载内容');
       } catch (error) {
         console.error('从短码加载内容失败:', error);
+
+        // 尝试从本地缓存加载
+        const cachedContent = getCachedShortLinkContent(code);
+        if (cachedContent) {
+          setMarkdown(cachedContent);
+          setIsPreviewMode(true);
+          showToast('短链接已过期，已从本地缓存加载内容', 'error');
+          return;
+        }
+
         const errorContent = `# 加载失败
 
 无法从短链接加载内容。
@@ -433,12 +455,8 @@ export default function App() {
       return;
     }
 
-    // 检查是否配置了公共图床服务
-    if (!isCloudflareConfigured()) {
-      showToast('请先在图床设置中配置公共图床服务', 'error');
-      setShowImageUploadSettings(true);
-      return;
-    }
+    // 获取短链接配置
+    const shortLinkConfig = getShortLinkConfig();
 
     try {
       // 先压缩数据
@@ -448,14 +466,33 @@ export default function App() {
         return;
       }
 
-      const code = await createContentShortCode(encoded, 24); // 24小时有效期
+      const code = await createContentShortCode(encoded, shortLinkConfig.ttl); // 使用配置的过期时间
       // 使用前端域名生成短链接
       const shortUrl = `${API_CONFIG.allowedDomain}/s/${code}`;
+
+      // 计算过期时间描述
+      const ttlHours = shortLinkConfig.ttl;
+      let ttlText = '';
+      if (ttlHours >= 720) {
+        ttlText = `${Math.floor(ttlHours / 720)}个月`;
+      } else if (ttlHours >= 168) {
+        ttlText = `${Math.floor(ttlHours / 168)}周`;
+      } else if (ttlHours >= 24) {
+        ttlText = `${Math.floor(ttlHours / 24)}天`;
+      } else {
+        ttlText = `${ttlHours}小时`;
+      }
 
       navigator.clipboard
         .writeText(shortUrl)
         .then(() => {
-          showToast(`短链接已复制到剪贴板！(24小时有效)`);
+          // 根据有效期设置不同的显示时长
+          const toastDuration = ttlHours >= 168 ? 5000 : 3000;
+          showToast(
+            `短链接已复制到剪贴板！(${ttlText}有效)`,
+            'success',
+            toastDuration,
+          );
         })
         .catch(() => {
           prompt('请复制以下短链接：', shortUrl);
@@ -956,87 +993,6 @@ export default function App() {
               )}
             </svg>
           </button>
-          {/* 导出按钮 */}
-          <div className="export-dropdown" ref={exportMenuRef}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              title="导出"
-            >
-              <svg
-                className="icon"
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" x2="12" y1="3" y2="15" />
-              </svg>
-            </button>
-            {showExportMenu && (
-              <div className="export-menu">
-                <button
-                  className="export-menu-item"
-                  onClick={handleExportMarkdown}
-                >
-                  <svg
-                    className="icon"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  导出 Markdown
-                </button>
-                <button
-                  className="export-menu-item"
-                  onClick={() => {
-                    handleExportHtml();
-                    setShowExportMenu(false);
-                  }}
-                >
-                  <svg
-                    className="icon"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" x2="8" y1="13" y2="13" />
-                    <line x1="16" x2="8" y1="17" y2="17" />
-                    <line x1="10" x2="8" y1="9" y2="9" />
-                  </svg>
-                  导出 HTML
-                </button>
-              </div>
-            )}
-          </div>
-          <input
-            id="file-input"
-            type="file"
-            accept=".md,.markdown,text/markdown"
-            style={{ display: 'none' }}
-            onChange={(e) => handleFileImport(e.target.files[0])}
-          />
           {/* 分享菜单 */}
           <div className="export-dropdown" ref={shareMenuRef}>
             <button
@@ -1127,6 +1083,108 @@ export default function App() {
               </div>
             )}
           </div>
+          {/* 导出按钮 */}
+          <div className="export-dropdown" ref={exportMenuRef}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              title="导出"
+            >
+              <svg
+                className="icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" x2="12" y1="3" y2="15" />
+              </svg>
+            </button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button
+                  className="export-menu-item"
+                  onClick={handleExportMarkdown}
+                >
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  导出 Markdown
+                </button>
+                <button
+                  className="export-menu-item"
+                  onClick={() => {
+                    handleExportHtml();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  <svg
+                    className="icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" x2="8" y1="13" y2="13" />
+                    <line x1="16" x2="8" y1="17" y2="17" />
+                    <line x1="10" x2="8" y1="9" y2="9" />
+                  </svg>
+                  导出 HTML
+                </button>
+              </div>
+            )}
+          </div>
+          <input
+            id="file-input"
+            type="file"
+            accept=".md,.markdown,text/markdown"
+            style={{ display: 'none' }}
+            onChange={(e) => handleFileImport(e.target.files[0])}
+          />
+          {/* 设置按钮 */}
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowImageUploadSettings(true)}
+            title="设置"
+          >
+            <svg
+              className="icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
           <a
             href="https://github.com/AriesYB/markdown-in-url"
             target="_blank"

@@ -18,6 +18,116 @@ import {
 } from '../utils/cloudflareAPI';
 import './ImageUploadSettings.css';
 
+// 本地存储键
+const SHORT_LINK_CONFIG_KEY = 'short-link-config';
+const CACHED_CONTENT_KEY_PREFIX = 'cached-content-';
+
+/**
+ * 获取短链接配置
+ */
+export function getShortLinkConfig() {
+  try {
+    const stored = localStorage.getItem(SHORT_LINK_CONFIG_KEY);
+    if (stored) {
+      const config = JSON.parse(stored);
+      return { ttl: config.ttl || 168 };
+    }
+  } catch (e) {
+    console.error('Failed to parse short link config:', e);
+  }
+  return { ttl: 168 }; // 默认7天（168小时）
+}
+
+/**
+ * 保存短链接配置
+ */
+export function saveShortLinkConfig(config) {
+  try {
+    localStorage.setItem(SHORT_LINK_CONFIG_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.error('Failed to save short link config:', e);
+    throw e;
+  }
+}
+
+/**
+ * 清除短链接配置
+ */
+export function clearShortLinkConfig() {
+  localStorage.removeItem(SHORT_LINK_CONFIG_KEY);
+}
+
+/**
+ * 清除所有本地缓存的内容
+ */
+export function clearAllCachedContent() {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.startsWith(CACHED_CONTENT_KEY_PREFIX)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (e) {
+    console.error('Failed to clear cached content:', e);
+  }
+}
+
+/**
+ * 获取所有缓存内容的存储大小（字节）
+ */
+export function getCachedContentSize() {
+  try {
+    let totalSize = 0;
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.startsWith(CACHED_CONTENT_KEY_PREFIX)) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          totalSize += key.length + value.length;
+        }
+      }
+    });
+    return totalSize;
+  } catch (e) {
+    console.error('Failed to calculate cached content size:', e);
+    return 0;
+  }
+}
+
+/**
+ * 缓存短链接内容到本地
+ */
+export function cacheShortLinkContent(code, content) {
+  try {
+    const key = `${CACHED_CONTENT_KEY_PREFIX}${code}`;
+    const data = {
+      content,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error('Failed to cache short link content:', e);
+  }
+}
+
+/**
+ * 从本地缓存获取短链接内容
+ */
+export function getCachedShortLinkContent(code) {
+  try {
+    const key = `${CACHED_CONTENT_KEY_PREFIX}${code}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const data = JSON.parse(stored);
+      return data.content;
+    }
+  } catch (e) {
+    console.error('Failed to get cached short link content:', e);
+  }
+  return null;
+}
+
 export default function ImageUploadSettings({
   isOpen,
   onClose,
@@ -38,6 +148,10 @@ export default function ImageUploadSettings({
   const [publicRemainingDays, setPublicRemainingDays] = useState(0);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
 
+  // 短链接配置
+  const [shortLinkTTL, setShortLinkTTL] = useState(168); // 7天（168小时）
+  const [cachedContentSize, setCachedContentSize] = useState(0);
+
   // 加载当前配置
   useEffect(() => {
     const config = getImageUploadConfig();
@@ -54,6 +168,11 @@ export default function ImageUploadSettings({
     setPublicRemainingDays(getPublicConfigRemainingDays());
     // 更新频率限制状态
     setRateLimitStatus(getRateLimitStatus());
+    // 加载短链接配置
+    const shortLinkConfig = getShortLinkConfig();
+    setShortLinkTTL(shortLinkConfig.ttl || 168);
+    // 更新缓存内容大小
+    setCachedContentSize(getCachedContentSize());
   }, [isOpen]);
 
   const handleModeChange = (newMode) => {
@@ -92,6 +211,10 @@ export default function ImageUploadSettings({
       saveCloudflareConfig('https://md.ntrbiss.top');
     }
     saveImageUploadConfig(config);
+    // 保存短链接配置
+    saveShortLinkConfig({
+      ttl: shortLinkTTL,
+    });
     onConfigChange?.();
     onClose?.();
   };
@@ -99,6 +222,7 @@ export default function ImageUploadSettings({
   const handleClear = () => {
     clearImageUploadConfig();
     clearCloudflareConfig();
+    clearShortLinkConfig();
     setMode(null);
     setCustomConfig({
       endpoint: '',
@@ -109,8 +233,24 @@ export default function ImageUploadSettings({
       region: 'auto',
     });
     setCfWorkerUrl('https://md.ntrbiss.top');
+    setShortLinkTTL(168);
     onConfigChange?.();
     onClose?.();
+  };
+
+  const handleClearCache = () => {
+    if (
+      confirm(
+        '确定要清除所有本地缓存的内容吗？这将释放存储空间，但已过期的短链接内容将无法恢复。',
+      )
+    ) {
+      clearAllCachedContent();
+      setCachedContentSize(0);
+      setTestResult({
+        type: 'success',
+        message: '已清除所有本地缓存内容',
+      });
+    }
   };
 
   const handleTest = async () => {
@@ -207,7 +347,7 @@ export default function ImageUploadSettings({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>图床设置</h2>
+          <h2>设置</h2>
           <button className="modal-close" onClick={onClose}>
             <svg
               viewBox="0 0 24 24"
@@ -239,9 +379,7 @@ export default function ImageUploadSettings({
                 />
                 <div className="mode-option-content">
                   <span className="mode-title">公共图床服务</span>
-                  <span className="mode-desc">
-                    使用公共图床上传图片，支持短链接分享
-                  </span>
+                  <span className="mode-desc">使用公共图床上传图片</span>
                 </div>
               </label>
 
@@ -274,23 +412,13 @@ export default function ImageUploadSettings({
                   <h4>功能说明</h4>
                   <ul>
                     <li>
-                      <strong>图床上传</strong>：支持上传图片到 R2 存储，返回
+                      <strong>图床上传</strong>：支持上传图片到对象存储，返回
                       Markdown 格式链接
-                    </li>
-                    <li>
-                      <strong>短链接</strong>：将长 URL 转换为短码，便于分享
-                    </li>
-                    <li>
-                      <strong>无需认证</strong>：使用 Referer
-                      防盗链，无需配置密钥
                     </li>
                     <li>
                       <strong>文件限制</strong>：最大 10MB，支持常见图片格式
                     </li>
                   </ul>
-                  <p className="info-note">
-                    注意：请确保你的域名在服务白名单中
-                  </p>
                 </div>
               </div>
             </div>
@@ -309,12 +437,51 @@ export default function ImageUploadSettings({
               </div>
             </div>
           )}
+
+          {/* 短链接配置（独立于图床配置） */}
+          <div className="setting-section">
+            <h3>短链接设置</h3>
+            <div className="short-link-config">
+              <div className="config-row">
+                <label>
+                  过期时间：
+                  <select
+                    value={shortLinkTTL}
+                    onChange={(e) => setShortLinkTTL(Number(e.target.value))}
+                  >
+                    <option value="24">1天</option>
+                    <option value="72">3天</option>
+                    <option value="168">7天</option>
+                    <option value="720">30天</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="cache-info">
+                <p className="cache-size">
+                  本地缓存大小：{(cachedContentSize / 1024).toFixed(2)} KB
+                </p>
+                <div className="cache-buttons">
+                  <button
+                    className="btn-text"
+                    onClick={handleClearCache}
+                    disabled={cachedContentSize === 0}
+                  >
+                    清除本地缓存
+                  </button>
+                  <button
+                    className="btn-text btn-text-danger"
+                    onClick={handleClear}
+                  >
+                    清除配置
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={handleClear}>
-            清除配置
-          </button>
           <button className="btn-primary" onClick={handleSave}>
             保存设置
           </button>

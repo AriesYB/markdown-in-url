@@ -1,14 +1,19 @@
 import { useEffect } from 'react';
 import './Toast.css';
 
-export default function Toast({ message, type = 'success', onClose }) {
+export default function Toast({
+  message,
+  type = 'success',
+  onClose,
+  duration = 3000,
+}) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
-    }, 3000);
+    }, duration);
 
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, duration]);
 
   return (
     <div className={`toast show ${type === 'error' ? 'error' : ''}`}>

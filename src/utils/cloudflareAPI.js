@@ -154,9 +154,15 @@ export async function createShortCode(data, ttl) {
   const config = getCloudflareConfig();
 
   const requestBody = { data };
+  // TTL 参数始终传递，确保后端使用设置的有效期
   if (ttl !== undefined && ttl !== null) {
     requestBody.ttl = ttl;
+  } else {
+    // 如果没有指定 TTL，使用默认值 168 小时（7天）
+    requestBody.ttl = 168;
   }
+
+  console.log('创建短链接，TTL:', ttl, '小时');
 
   const response = await fetch(`${config.baseUrl}/shorten`, {
     method: 'POST',
