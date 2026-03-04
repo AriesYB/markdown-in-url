@@ -8,7 +8,7 @@ const API_CONFIG = {
   // 默认 API 地址，用户可以在设置中修改
   baseUrl: 'https://d1.ntrbiss.top',
   // 允许的域名
-  allowedDomain: 'https://d1.ntrbiss.top',
+  allowedDomain: 'https://md.ntrbiss.top',
 };
 
 // 本地存储键
@@ -71,8 +71,8 @@ export async function testConnection() {
     const response = await fetch(`${config.baseUrl}/`, {
       method: 'GET',
       headers: {
-        origin: config.baseUrl,
-        referer: `${config.baseUrl}/`,
+        origin: API_CONFIG.allowedDomain,
+        referer: `${API_CONFIG.allowedDomain}/`,
       },
     });
 
@@ -110,8 +110,8 @@ export async function uploadImage(file) {
   const response = await fetch(`${config.baseUrl}/upload`, {
     method: 'POST',
     headers: {
-      origin: config.baseUrl,
-      referer: `${config.baseUrl}/`,
+      origin: API_CONFIG.allowedDomain,
+      referer: `${API_CONFIG.allowedDomain}/`,
     },
     body: formData,
   });
@@ -148,8 +148,8 @@ export async function createShortCode(data, ttl) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      origin: config.baseUrl,
-      referer: `${config.baseUrl}/`,
+      origin: API_CONFIG.allowedDomain,
+      referer: `${API_CONFIG.allowedDomain}/`,
     },
     body: JSON.stringify(requestBody),
   });
