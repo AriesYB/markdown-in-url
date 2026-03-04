@@ -410,7 +410,14 @@ export default function App() {
     }
 
     try {
-      const code = await createContentShortCode(trimmed, 24); // 24小时有效期
+      // 先压缩数据
+      const encoded = encodeData(trimmed);
+      if (!encoded) {
+        showToast('编码失败，内容可能过大', 'error');
+        return;
+      }
+
+      const code = await createContentShortCode(encoded, 24); // 24小时有效期
       const config = getCloudflareConfig();
       const shortUrl = `${config.baseUrl}/s/${code}`;
 

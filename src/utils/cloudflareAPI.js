@@ -6,9 +6,9 @@
 // API 基础配置
 const API_CONFIG = {
   // 默认 API 地址，用户可以在设置中修改
-  baseUrl: 'https://md.ntrbiss.top',
+  baseUrl: 'https://d1.ntrbiss.top',
   // 允许的域名
-  allowedDomain: 'https://md.ntrbiss.top',
+  allowedDomain: 'https://d1.ntrbiss.top',
 };
 
 // 本地存储键
@@ -132,7 +132,7 @@ export async function uploadImage(file) {
 
 /**
  * 创建短码（字符串压缩）
- * @param {string} data - 需要压缩的字符串数据
+ * @param {string} data - 已经压缩过的字符串数据
  * @param {number} ttl - 有效期（小时），不传则永久有效
  * @returns {Promise<Object>} 短码结果
  */
