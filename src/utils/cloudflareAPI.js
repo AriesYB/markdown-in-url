@@ -3,13 +3,20 @@
  * 用于图床上传和短URL功能
  */
 
+import { decodeData } from './encoding';
+
 // API 基础配置
 const API_CONFIG = {
   // 默认 API 地址，用户可以在设置中修改
   baseUrl: 'https://d1.ntrbiss.top',
-  // 允许的域名
+  // 允许的域名（前端域名，用于Referer验证和生成短链接）
   allowedDomain: 'https://md.ntrbiss.top',
+  // 旧域名（用于迁移）
+  oldBaseUrl: 'https://md.ntrbiss.top',
 };
+
+// 导出 API_CONFIG 供其他模块使用
+export { API_CONFIG };
 
 // 本地存储键
 const STORAGE_KEY = 'cf-worker-config';
@@ -22,7 +29,14 @@ export function getCloudflareConfig() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const config = JSON.parse(stored);
+      // 如果存储的是旧域名，清除并使用新的默认值
+      if (config.baseUrl === API_CONFIG.oldBaseUrl) {
+        console.log('检测到旧域名配置，自动迁移到新域名');
+        localStorage.removeItem(STORAGE_KEY);
+        return { baseUrl: API_CONFIG.baseUrl };
+      }
+      return config;
     }
   } catch (e) {
     console.error('Failed to parse Cloudflare config:', e);
@@ -226,7 +240,12 @@ export async function createContentShortCode(content, ttl = 24) {
  */
 export async function loadContentFromShortCode(code) {
   const result = await getOriginalData(code);
-  return result.data;
+  // 后端返回的是压缩后的数据，需要先解压缩
+  const decoded = decodeData(result.data);
+  if (!decoded) {
+    throw new Error('解压缩数据失败');
+  }
+  return decoded;
 }
 
 /**

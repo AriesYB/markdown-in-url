@@ -11,6 +11,7 @@ import {
   getCloudflareConfig,
   isCloudflareConfigured,
   loadContentFromShortCode,
+  API_CONFIG,
 } from './utils/cloudflareAPI';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
@@ -418,8 +419,8 @@ export default function App() {
       }
 
       const code = await createContentShortCode(encoded, 24); // 24小时有效期
-      const config = getCloudflareConfig();
-      const shortUrl = `${config.baseUrl}/s/${code}`;
+      // 使用前端域名生成短链接
+      const shortUrl = `${API_CONFIG.allowedDomain}/s/${code}`;
 
       navigator.clipboard
         .writeText(shortUrl)
