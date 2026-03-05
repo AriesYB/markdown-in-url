@@ -86,12 +86,16 @@ export default function Preview({
       try {
         const defaultHtml = defaultImage.call(this, href, title, text);
         // 检测是否为徽章图片（shields.io 或类似服务）
-        const hrefStr = typeof href === 'string' ? href : '';
+        // marked v5+ 中 href 可能是对象，需要提取实际的 URL 字符串
+        const hrefStr = typeof href === 'string' ? href : href?.href || '';
         const titleStr = typeof title === 'string' ? title : '';
-        const isBadge = hrefStr.includes('shields.io') ||
-                        hrefStr.includes('img.shields.io') ||
-                        titleStr.toLowerCase().includes('badge');
-        const wrapperClass = isBadge ? 'markdown-badge-wrapper' : 'markdown-image-wrapper';
+        const isBadge =
+          hrefStr.includes('shields.io') ||
+          hrefStr.includes('img.shields.io') ||
+          titleStr.toLowerCase().includes('badge');
+        const wrapperClass = isBadge
+          ? 'markdown-badge-wrapper'
+          : 'markdown-image-wrapper';
         return `<span class="${wrapperClass}">${defaultHtml}</span>`;
       } catch (error) {
         // 如果自定义渲染失败，回退到默认渲染
@@ -104,14 +108,16 @@ export default function Preview({
     const defaultParagraph = new marked.Renderer().paragraph;
     renderer.paragraph = function (text) {
       try {
+        // 确保 text 是字符串
+        const textStr = typeof text === 'string' ? text : String(text);
         // 检测段落是否只包含徽章图片（可能多个）
         const badgePattern = /<span class="markdown-badge-wrapper">/g;
-        const matches = text.match(badgePattern);
-        const totalLength = text.replace(/<[^>]*>/g, '').trim().length;
-        
+        const matches = textStr.match(badgePattern);
+        const totalLength = textStr.replace(/<[^>]*>/g, '').trim().length;
+
         // 如果段落只包含徽章图片（没有其他文本内容）
         if (matches && matches.length > 0 && totalLength === 0) {
-          return `<p class="markdown-badge-paragraph">${text}</p>`;
+          return `<p class="markdown-badge-paragraph">${textStr}</p>`;
         }
         return defaultParagraph.call(this, text);
       } catch (error) {
@@ -185,65 +191,99 @@ export default function Preview({
     });
     setHeadings(newHeadings);
 
-    // 渲染 Mermaid 图表
+    // 渲染 Mermaid 图表（等待所有渲染完成）
     const mermaidElements = contentRef.current.querySelectorAll('.mermaid');
+    const mermaidRenderPromises = [];
     if (mermaidElements.length > 0) {
-      mermaidElements.forEach(async (element) => {
+      mermaidElements.forEach((element) => {
         const code = element.textContent.trim();
         const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        try {
-          const result = await mermaid.render(id, code);
-          if (typeof result === 'string') {
-            element.innerHTML = result;
-          } else if (result && result.svg) {
-            element.innerHTML = result.svg;
-          } else {
-            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：无法解析结果</pre>`;
+        const renderPromise = (async () => {
+          try {
+            const result = await mermaid.render(id, code);
+            if (typeof result === 'string') {
+              element.innerHTML = result;
+            } else if (result && result.svg) {
+              element.innerHTML = result.svg;
+            } else {
+              element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：无法解析结果</pre>`;
+            }
+          } catch (err) {
+            element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
           }
-        } catch (err) {
-          element.innerHTML = `<pre style="color: #f14c4c;">图表渲染失败：${err.message || err}</pre>`;
-        }
+        })();
+        mermaidRenderPromises.push(renderPromise);
       });
     }
 
-    // 代码高亮
-    contentRef.current.querySelectorAll('pre code').forEach((block) => {
-      hljs.highlightElement(block);
-    });
+    // 等待所有Mermaid渲染完成后再进行代码高亮和样式设置
+    Promise.all(mermaidRenderPromises).then(() => {
+      // 代码高亮
+      contentRef.current.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
 
-    // 添加图片点击事件监听器
-    const images = contentRef.current.querySelectorAll('.markdown-image-wrapper img');
-    images.forEach((img) => {
-      img.addEventListener('click', () => {
-        setPreviewImage(img.src);
+      // 为所有图片添加cursor样式
+      const allImages = contentRef.current.querySelectorAll('img');
+      allImages.forEach((img) => {
+        img.style.cursor = 'pointer';
+      });
+
+      // 为所有SVG添加cursor样式
+      const svgs = contentRef.current.querySelectorAll(
+        '.markdown-image-wrapper svg, .mermaid svg',
+      );
+      svgs.forEach((svg) => {
+        svg.style.cursor = 'pointer';
       });
     });
+  }, [markdown, isDarkTheme]);
 
-    // 添加SVG图片点击事件监听器
-    const svgImages = contentRef.current.querySelectorAll('.markdown-image-wrapper svg');
-    svgImages.forEach((svg) => {
-      svg.style.cursor = 'pointer';
-      svg.addEventListener('click', () => {
-        // 将SVG转换为data URL用于预览
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(svgBlob);
-        setPreviewImage(url);
-      });
-    });
+  // 处理图片和SVG点击预览 - 使用独立的useEffect管理事件监听器
+  useEffect(() => {
+    if (!contentRef.current) return;
 
-    // 添加Mermaid图表点击事件监听器
-    const mermaidSvgs = contentRef.current.querySelectorAll('.mermaid svg');
-    mermaidSvgs.forEach((svg) => {
-      svg.style.cursor = 'pointer';
-      svg.addEventListener('click', () => {
-        // 将SVG转换为data URL用于预览
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(svgBlob);
-        setPreviewImage(url);
-      });
-    });
+    const handleClick = (e) => {
+      const target = e.target;
+
+      // 处理img标签点击
+      if (target.tagName === 'IMG') {
+        e.preventDefault();
+        e.stopPropagation();
+        setPreviewImage(target.src);
+        return;
+      }
+
+      // 处理内嵌SVG点击 - 使用closest查找SVG元素（因为点击的可能是SVG内部的子元素）
+      const svgElement = target.closest('svg');
+      if (svgElement) {
+        const wrapper = svgElement.closest('.markdown-image-wrapper');
+        const mermaidContainer = svgElement.closest('.mermaid');
+
+        if (wrapper || mermaidContainer) {
+          e.preventDefault();
+          e.stopPropagation();
+          // 将SVG转换为data URL用于预览
+          const svgData = new XMLSerializer().serializeToString(svgElement);
+          const svgBlob = new Blob([svgData], {
+            type: 'image/svg+xml;charset=utf-8',
+          });
+          const url = URL.createObjectURL(svgBlob);
+          setPreviewImage(url);
+          return;
+        }
+      }
+    };
+
+    // 添加事件监听器
+    contentRef.current.addEventListener('click', handleClick);
+
+    // cleanup函数：移除事件监听器
+    return () => {
+      if (contentRef.current) {
+        contentRef.current.removeEventListener('click', handleClick);
+      }
+    };
   }, [markdown, isDarkTheme]);
 
   // 处理滚动
