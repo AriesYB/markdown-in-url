@@ -22,6 +22,7 @@ export default function Editor({
   editorRef,
   uploadManager,
   onShowImageUploadSettings,
+  pendingPasteImage,
 }) {
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
@@ -33,6 +34,93 @@ export default function Editor({
     trigger: '',
     position: { top: 0, left: 0 },
   });
+
+  // 处理待粘贴的图片（配置完成后自动粘贴）
+  useEffect(() => {
+    if (pendingPasteImage && isImageUploadConfigured()) {
+      processImageUpload(pendingPasteImage);
+      // 清除待粘贴的图片
+      onClearPendingPasteImage?.();
+    }
+  }, [pendingPasteImage, isImageUploadConfigured()]);
+
+  // 处理图片上传的函数
+  const processImageUpload = useCallback(
+    (file) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const cursorPosition = textarea.selectionStart;
+      const textBeforeCursor = value.substring(0, cursorPosition);
+      const textAfterCursor = value.substring(cursorPosition);
+
+      // 检查光标前是否有换行，如果没有则添加
+      const needsNewline = textBeforeCursor && !textBeforeCursor.endsWith('\n');
+      const prefix = needsNewline ? '\n' : '';
+
+      // 使用图床上传
+      if (uploadManager) {
+        const uploadId = uploadManager.addUpload(file.name || '粘贴图片');
+
+        uploadImage(file, (loaded, total) => {
+          uploadManager.updateUploadProgress(uploadId, loaded, total);
+        })
+          .then(({ url, method, markdown }) => {
+            // 如果是 Cloudflare Workers API，直接使用返回的 markdown
+            let imageMarkdown;
+            if (method === 'cf-worker' && markdown) {
+              imageMarkdown = `${prefix}${markdown}`;
+            } else {
+              imageMarkdown = `${prefix}![粘贴图片](${url})`;
+            }
+            const newText = textBeforeCursor + imageMarkdown + textAfterCursor;
+            onChange(newText);
+            uploadManager.completeUpload(uploadId, true);
+
+            // 设置光标位置到图片后面
+            const newCursorPosition = cursorPosition + imageMarkdown.length;
+            textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
+            textarea.focus();
+          })
+          .catch((error) => {
+            // 上传失败，回退到 base64
+            console.warn('图床上传失败，使用 base64:', error);
+            fileToBase64(file).then((base64) => {
+              const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
+              const newText =
+                textBeforeCursor + imageMarkdown + textAfterCursor;
+              onChange(newText);
+              uploadManager.completeUpload(uploadId, false, '已回退到 Base64');
+
+              // 设置光标位置到图片后面
+              const newCursorPosition = cursorPosition + imageMarkdown.length;
+              textarea.selectionStart = textarea.selectionEnd =
+                newCursorPosition;
+              textarea.focus();
+            });
+          });
+      } else {
+        // 没有上传管理器，直接使用 base64
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result;
+          if (!base64) return;
+
+          const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
+          const newText = textBeforeCursor + imageMarkdown + textAfterCursor;
+
+          onChange(newText);
+
+          // 设置光标位置到图片后面
+          const newCursorPosition = cursorPosition + imageMarkdown.length;
+          textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
+          textarea.focus();
+        };
+        reader.readAsDataURL(file);
+      }
+    },
+    [value, onChange, uploadManager],
+  );
 
   // 插入自动补全项
   const insertAutocompleteItem = useCallback(
@@ -316,96 +404,19 @@ export default function Editor({
         if (item.type.indexOf('image') !== -1) {
           e.preventDefault();
 
+          const file = item.getAsFile();
+          if (!file) return;
+
           // 检查图床是否已设置
           if (!isImageUploadConfigured()) {
+            // 保存待粘贴的图片，配置完成后自动处理
+            onSetPendingPasteImage?.(file);
             onShowImageUploadSettings?.();
             return;
           }
 
-          const file = item.getAsFile();
-          if (!file) return;
-
-          const textarea = textareaRef.current;
-          if (!textarea) return;
-
-          const cursorPosition = textarea.selectionStart;
-          const textBeforeCursor = value.substring(0, cursorPosition);
-          const textAfterCursor = value.substring(cursorPosition);
-
-          // 检查光标前是否有换行，如果没有则添加
-          const needsNewline =
-            textBeforeCursor && !textBeforeCursor.endsWith('\n');
-          const prefix = needsNewline ? '\n' : '';
-
-          // 使用图床上传
-          if (uploadManager) {
-            const uploadId = uploadManager.addUpload(file.name || '粘贴图片');
-
-            uploadImage(file, (loaded, total) => {
-              uploadManager.updateUploadProgress(uploadId, loaded, total);
-            })
-              .then(({ url, method, markdown }) => {
-                // 如果是 Cloudflare Workers API，直接使用返回的 markdown
-                let imageMarkdown;
-                if (method === 'cf-worker' && markdown) {
-                  imageMarkdown = `${prefix}${markdown}`;
-                } else {
-                  imageMarkdown = `${prefix}![粘贴图片](${url})`;
-                }
-                const newText =
-                  textBeforeCursor + imageMarkdown + textAfterCursor;
-                onChange(newText);
-                uploadManager.completeUpload(uploadId, true);
-
-                // 设置光标位置到图片后面
-                const newCursorPosition = cursorPosition + imageMarkdown.length;
-                textarea.selectionStart = textarea.selectionEnd =
-                  newCursorPosition;
-                textarea.focus();
-              })
-              .catch((error) => {
-                // 上传失败，回退到 base64
-                console.warn('图床上传失败，使用 base64:', error);
-                fileToBase64(file).then((base64) => {
-                  const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
-                  const newText =
-                    textBeforeCursor + imageMarkdown + textAfterCursor;
-                  onChange(newText);
-                  uploadManager.completeUpload(
-                    uploadId,
-                    false,
-                    '已回退到 Base64',
-                  );
-
-                  // 设置光标位置到图片后面
-                  const newCursorPosition =
-                    cursorPosition + imageMarkdown.length;
-                  textarea.selectionStart = textarea.selectionEnd =
-                    newCursorPosition;
-                  textarea.focus();
-                });
-              });
-          } else {
-            // 没有上传管理器，直接使用 base64
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const base64 = event.target?.result;
-              if (!base64) return;
-
-              const imageMarkdown = `${prefix}![粘贴图片](${base64})`;
-              const newText =
-                textBeforeCursor + imageMarkdown + textAfterCursor;
-
-              onChange(newText);
-
-              // 设置光标位置到图片后面
-              const newCursorPosition = cursorPosition + imageMarkdown.length;
-              textarea.selectionStart = textarea.selectionEnd =
-                newCursorPosition;
-              textarea.focus();
-            };
-            reader.readAsDataURL(file);
-          }
+          // 直接处理图片上传
+          processImageUpload(file);
           return;
         }
       }

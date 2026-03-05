@@ -121,6 +121,8 @@ export default function App() {
   const [showImageUploadSettings, setShowImageUploadSettings] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState(null);
+  const [isGeneratingShortUrl, setIsGeneratingShortUrl] = useState(false);
+  const [pendingPasteImage, setPendingPasteImage] = useState(null);
 
   // 滚动同步
   const editorRef = useRef(null);
@@ -460,6 +462,7 @@ export default function App() {
     // 获取短链接配置
     const shortLinkConfig = getShortLinkConfig();
 
+    setIsGeneratingShortUrl(true);
     try {
       // 先压缩数据
       const encoded = encodeData(trimmed);
@@ -502,6 +505,8 @@ export default function App() {
     } catch (error) {
       console.error('生成短链接失败:', error);
       showToast(`生成短链接失败: ${error.message}`, 'error');
+    } finally {
+      setIsGeneratingShortUrl(false);
     }
   }, [markdown, showToast]);
 
@@ -1066,21 +1071,43 @@ export default function App() {
                     handleShortUrl();
                     setShowShareMenu(false);
                   }}
+                  disabled={isGeneratingShortUrl}
                 >
-                  <svg
-                    className="icon"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  临时短链接（24小时）
+                  {isGeneratingShortUrl ? (
+                    <>
+                      <svg
+                        className="icon spinning"
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="icon"
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      临时短链接（24小时）
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1229,6 +1256,9 @@ export default function App() {
             editorRef={editorRef}
             uploadManager={uploadManager}
             onShowImageUploadSettings={() => setShowImageUploadSettings(true)}
+            pendingPasteImage={pendingPasteImage}
+            onClearPendingPasteImage={() => setPendingPasteImage(null)}
+            onSetPendingPasteImage={setPendingPasteImage}
           />
         )}
 
