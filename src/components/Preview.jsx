@@ -83,8 +83,42 @@ export default function Preview({
     // 自定义图片渲染器 - 使用默认渲染器并添加包装
     const defaultImage = new marked.Renderer().image;
     renderer.image = function (href, title, text) {
-      const defaultHtml = defaultImage.call(this, href, title, text);
-      return `<div class="markdown-image-wrapper">${defaultHtml}</div>`;
+      try {
+        const defaultHtml = defaultImage.call(this, href, title, text);
+        // 检测是否为徽章图片（shields.io 或类似服务）
+        const hrefStr = typeof href === 'string' ? href : '';
+        const titleStr = typeof title === 'string' ? title : '';
+        const isBadge = hrefStr.includes('shields.io') ||
+                        hrefStr.includes('img.shields.io') ||
+                        titleStr.toLowerCase().includes('badge');
+        const wrapperClass = isBadge ? 'markdown-badge-wrapper' : 'markdown-image-wrapper';
+        return `<span class="${wrapperClass}">${defaultHtml}</span>`;
+      } catch (error) {
+        // 如果自定义渲染失败，回退到默认渲染
+        console.warn('图片渲染失败，使用默认渲染:', error);
+        return defaultImage.call(this, href, title, text);
+      }
+    };
+
+    // 自定义段落渲染器 - 检测只包含徽章的段落，使用 inline 样式
+    const defaultParagraph = new marked.Renderer().paragraph;
+    renderer.paragraph = function (text) {
+      try {
+        // 检测段落是否只包含徽章图片（可能多个）
+        const badgePattern = /<span class="markdown-badge-wrapper">/g;
+        const matches = text.match(badgePattern);
+        const totalLength = text.replace(/<[^>]*>/g, '').trim().length;
+        
+        // 如果段落只包含徽章图片（没有其他文本内容）
+        if (matches && matches.length > 0 && totalLength === 0) {
+          return `<p class="markdown-badge-paragraph">${text}</p>`;
+        }
+        return defaultParagraph.call(this, text);
+      } catch (error) {
+        // 如果自定义渲染失败，回退到默认渲染
+        console.warn('段落渲染失败，使用默认渲染:', error);
+        return defaultParagraph.call(this, text);
+      }
     };
 
     marked.setOptions({

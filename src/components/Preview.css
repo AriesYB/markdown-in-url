@@ -162,6 +162,34 @@
   text-align: center;
 }
 
+/* 徽章图片包装器 - 内联显示不换行 */
+.markdown-badge-wrapper {
+  display: inline-block;
+  margin: 0 4px;
+  vertical-align: middle;
+}
+
+.markdown-badge-wrapper img {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.markdown-badge-wrapper img:hover {
+  transform: scale(1.05);
+}
+
+/* 徽章段落 - 允许徽章在同一行显示 */
+.markdown-badge-paragraph {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}
+
 .markdown-image-wrapper img {
   max-width: 100%;
   height: auto;
