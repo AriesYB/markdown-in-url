@@ -1,0 +1,13 @@
+# robots.txt for md.ntrbiss.top
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://md.ntrbiss.top/sitemap.xml
+
+# Crawl-delay (optional, adjust as needed)
+# Crawl-delay: 1
+
+# Disallow specific paths if any
+# Disallow: /private/

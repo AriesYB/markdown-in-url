@@ -1,0 +1,7 @@
+# 静态文件直接访问
+/sitemap.xml /sitemap.xml 200
+/robots.txt /robots.txt 200
+/img/* /img/:splat 200
+
+# 其他所有路由重定向到index.html（SPA支持）
+/* /index.html 200
