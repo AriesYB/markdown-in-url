@@ -212,10 +212,36 @@ export default function Preview({
     });
 
     // 添加图片点击事件监听器
-    const images = contentRef.current.querySelectorAll('.markdown-image');
+    const images = contentRef.current.querySelectorAll('.markdown-image-wrapper img');
     images.forEach((img) => {
       img.addEventListener('click', () => {
         setPreviewImage(img.src);
+      });
+    });
+
+    // 添加SVG图片点击事件监听器
+    const svgImages = contentRef.current.querySelectorAll('.markdown-image-wrapper svg');
+    svgImages.forEach((svg) => {
+      svg.style.cursor = 'pointer';
+      svg.addEventListener('click', () => {
+        // 将SVG转换为data URL用于预览
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        setPreviewImage(url);
+      });
+    });
+
+    // 添加Mermaid图表点击事件监听器
+    const mermaidSvgs = contentRef.current.querySelectorAll('.mermaid svg');
+    mermaidSvgs.forEach((svg) => {
+      svg.style.cursor = 'pointer';
+      svg.addEventListener('click', () => {
+        // 将SVG转换为data URL用于预览
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        setPreviewImage(url);
       });
     });
   }, [markdown, isDarkTheme]);
