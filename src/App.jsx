@@ -219,8 +219,19 @@ export default function App() {
   // 从短码加载内容
   const loadFromShortCode = useCallback(
     async (code) => {
+      // 优先从本地缓存读取
+      const cachedContent = getCachedShortLinkContent(code);
+      if (cachedContent) {
+        console.log('从本地缓存加载短链接内容:', code);
+        setMarkdown(cachedContent);
+        setIsPreviewMode(true);
+        showToast('已从本地缓存加载内容', 'success');
+        return;
+      }
+
+      // 缓存不存在，调用后端接口
       try {
-        showToast('正在从短链接加载内容...', 'success');
+        showToast('正在从服务器加载内容...', 'success');
         const content = await loadContentFromShortCode(code);
 
         // 缓存内容到本地存储
@@ -228,18 +239,9 @@ export default function App() {
 
         setMarkdown(content);
         setIsPreviewMode(true);
-        showToast('已从短链接加载内容');
+        showToast('已从服务器加载内容');
       } catch (error) {
         console.error('从短码加载内容失败:', error);
-
-        // 尝试从本地缓存加载
-        const cachedContent = getCachedShortLinkContent(code);
-        if (cachedContent) {
-          setMarkdown(cachedContent);
-          setIsPreviewMode(true);
-          showToast('短链接已过期，已从本地缓存加载内容', 'error');
-          return;
-        }
 
         const errorContent = `# 加载失败
 
