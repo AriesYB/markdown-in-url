@@ -1,0 +1,60 @@
+.language-switcher {
+  display: inline-block;
+}
+
+.language-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  background-color: transparent;
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+}
+
+.language-button:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-light);
+}
+
+.language-button:active {
+  background-color: var(--bg-tertiary);
+}
+
+.language-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.language-name {
+  display: none;
+}
+
+/* Dark theme */
+.dark-theme .language-button {
+  color: #e6edf3;
+}
+
+.dark-theme .language-button:hover {
+  background-color: #30363d;
+  border-color: #484f58;
+}
+
+/* Light theme */
+.light-theme .language-button {
+  color: #24292f;
+}
+
+.light-theme .language-button:hover {
+  background-color: #d0d7de;
+  border-color: #babbbd;
+}
