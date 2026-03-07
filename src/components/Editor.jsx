@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { markdownSuggestions } from '../data/autocomplete';
 import {
   uploadImage,
@@ -24,6 +25,7 @@ export default function Editor({
   onShowImageUploadSettings,
   pendingPasteImage,
 }) {
+  const { t } = useTranslation();
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
   const [autocomplete, setAutocomplete] = useState({
@@ -435,7 +437,7 @@ export default function Editor({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件');
+      alert(t('editor.selectImageFile'));
       return;
     }
 
@@ -526,14 +528,14 @@ export default function Editor({
   return (
     <div className="editor-container">
       <div className="panel-header">
-        <span className="panel-title">编辑器</span>
+        <span className="panel-title">{t('editor.title')}</span>
         <div className="panel-actions">
           {/* 撤销按钮 */}
           <button
             className="btn-icon"
             onClick={onUndo}
             disabled={!canUndo}
-            title="撤销 (Ctrl+Z)"
+            title={t('editor.undo')}
           >
             <svg
               viewBox="0 0 24 24"
@@ -554,7 +556,7 @@ export default function Editor({
             className="btn-icon"
             onClick={onRedo}
             disabled={!canRedo}
-            title="恢复 (Ctrl+Y)"
+            title={t('editor.redo')}
           >
             <svg
               viewBox="0 0 24 24"
@@ -574,7 +576,7 @@ export default function Editor({
           <button
             className="btn-icon"
             onClick={onShowTemplateModal}
-            title="加载示例模板"
+            title={t('editor.loadTemplate')}
           >
             <svg
               viewBox="0 0 24 24"
@@ -595,7 +597,7 @@ export default function Editor({
           <button
             className="btn-icon"
             onClick={() => document.getElementById('editor-file-input').click()}
-            title="导入 Markdown"
+            title={t('editor.importMarkdown')}
           >
             <svg
               viewBox="0 0 24 24"
@@ -616,7 +618,7 @@ export default function Editor({
           <button
             className="btn-icon"
             onClick={handleImageUploadClick}
-            title="插入图片"
+            title={t('editor.insertImage')}
           >
             <svg
               viewBox="0 0 24 24"
@@ -648,7 +650,11 @@ export default function Editor({
             onChange={(e) => onFileImport(e.target.files[0])}
           />
           {/* 清空按钮 */}
-          <button className="btn-icon" onClick={onClear} title="清空内容">
+          <button
+            className="btn-icon"
+            onClick={onClear}
+            title={t('editor.clearContent')}
+          >
             <svg
               viewBox="0 0 24 24"
               width="16"
@@ -664,7 +670,9 @@ export default function Editor({
               <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
           </button>
-          <span className="char-count">{charCount} 字符</span>
+          <span className="char-count">
+            {t('editor.characterCount', { count: charCount })}
+          </span>
         </div>
       </div>
       <div className="editor-wrapper">
@@ -677,7 +685,7 @@ export default function Editor({
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onPaste={handlePaste}
-          placeholder="在此输入 Markdown 内容..."
+          placeholder={t('editor.placeholder')}
           spellCheck={false}
         />
         <Autocomplete

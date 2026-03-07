@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { marked } from 'marked';
 import mermaid from 'mermaid';
 import hljs from 'highlight.js/lib/core';
@@ -38,6 +39,7 @@ export default function Preview({
   isTocVisible,
   previewRef,
 }) {
+  const { t } = useTranslation();
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);

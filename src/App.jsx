@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useDebounce } from './hooks/useDebounce';
@@ -24,6 +25,7 @@ import TemplateModal from './components/TemplateModal';
 import ImageUploadSettings from './components/ImageUploadSettings';
 import UploadProgress from './components/UploadProgress';
 import Toast from './components/Toast';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import './App.css';
 import iconSvg from '/img/icon.svg';
 
@@ -34,23 +36,23 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// 默认欢迎内容
-const defaultContent = `# 欢迎使用 Markdown 在线预览
+// 默认欢迎内容（将在组件内部使用 t() 函数动态生成）
+const getDefaultContent = (t) => `# ${t('app.welcome')}
 
-这是一个支持 **Mermaid 图表** 的 Markdown 在线编辑器。
+${t('app.welcomeDescription')}
 
 [关于本项目的更多介绍](https://markdown-in-url.pages.dev/?source=https://raw.githubusercontent.com/AriesYB/markdown-in-url/refs/heads/master/README.md)
 
-## 功能特点
+## ${t('app.features')}
 
-- 📝 在线编辑 Markdown
-- 👁️ 实时预览渲染结果
-- 🔗 **生成分享链接（无需传输markdown文件）**
-- 🎨 支持 Mermaid 图表
+- 📝 ${t('app.feature1')}
+- 👁️ ${t('app.feature2')}
+- 🔗 **${t('app.feature3')}**
+- 🎨 ${t('app.feature4')}
 
-## Mermaid 图表示例
+## ${t('app.mermaidExamples')}
 
-### 流程图
+### ${t('app.flowchart')}
 
 \`\`\`mermaid
 graph TD
@@ -61,7 +63,7 @@ graph TD
     D --> E
 \`\`\`
 
-### 时序图
+### ${t('app.sequenceDiagram')}
 
 \`\`\`mermaid
 sequenceDiagram
@@ -75,18 +77,30 @@ sequenceDiagram
     系统-->>用户: 响应结果
 \`\`\`
 
-## 开始使用
+## ${t('app.gettingStarted')}
 
-1. 在左侧编辑器输入 Markdown 内容
-2. 右侧实时预览渲染结果
-3. 点击"生成分享链接"按钮
-4. 分享链接给他人，打开即可查看
+1. ${t('app.gettingStarted1')}
+2. ${t('app.gettingStarted2')}
+3. ${t('app.gettingStarted3')}
+4. ${t('app.gettingStarted4')}
 
 ---
-点击右上角的 **模板** 按钮可以加载更多示例！
+${t('app.templateHint')}
 `;
 
 export default function App() {
+  const { t, i18n } = useTranslation();
+
+  // 动态更新网页标题
+  useEffect(() => {
+    const title = t('app.title');
+    const suffix = t('app.titleSuffix');
+    document.title = `${title} - ${suffix}`;
+  }, [t, i18n.language]);
+
+  // 生成默认欢迎内容
+  const defaultContent = getDefaultContent(t);
+
   // 撤销/重做（作为主要状态，支持持久化）
   const {
     value: markdown,
@@ -177,7 +191,7 @@ export default function App() {
   const loadFromSource = useCallback(
     async (sourceUrl) => {
       try {
-        showToast('正在加载远程内容...', 'success');
+        showToast(t('app.loadingRemote'), 'success');
 
         const response = await fetch(sourceUrl);
 
@@ -187,35 +201,35 @@ export default function App() {
 
         const content = await response.text();
         setMarkdown(content);
-        showToast('已从远程 URL 加载内容');
+        showToast(t('app.loadedFromRemote'));
       } catch (error) {
         console.error('加载远程内容失败:', error);
-        const errorContent = `# 加载失败
+        const errorContent = `# ${t('app.loadFailedTitle')}
 
-无法从远程 URL 加载内容。
+${t('app.cannotLoadFromRemote')}
 
-**错误信息：** ${error.message}
+**${t('app.errorMessage')}** ${error.message}
 
-## 可能的原因
+## ${t('app.possibleCauses')}
 
-1. 远程 URL 不存在或无法访问
-2. 网络连接问题
-3. CORS 限制
+1. ${t('app.cause1')}
+2. ${t('app.cause2')}
+3. ${t('app.cause3')}
 
-## 解决方案
+## ${t('app.solutions')}
 
-- 确认 URL 是否正确
-- 检查网络连接
-- 确认远程服务器允许跨域访问
+- ${t('app.solution1')}
+- ${t('app.solution2')}
+- ${t('app.solution3')}
 
 ---
 
-您可以手动复制 Markdown 内容到编辑器中。`;
+${t('app.manualCopyHint')}`;
         setMarkdown(errorContent);
-        showToast('加载失败，请检查链接', 'error');
+        showToast(t('app.loadFailed'), 'error');
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   // 从短码加载内容
@@ -227,13 +241,13 @@ export default function App() {
         console.log('从本地缓存加载短链接内容:', code);
         setMarkdown(cachedContent);
         setIsPreviewMode(true);
-        showToast('已从本地缓存加载内容', 'success');
+        showToast(t('app.loadedFromCache'), 'success');
         return;
       }
 
       // 缓存不存在，调用后端接口
       try {
-        showToast('正在从服务器加载内容...', 'success');
+        showToast(t('app.loadingFromServer'), 'success');
         const content = await loadContentFromShortCode(code);
 
         // 缓存内容到本地存储
@@ -241,36 +255,36 @@ export default function App() {
 
         setMarkdown(content);
         setIsPreviewMode(true);
-        showToast('已从服务器加载内容');
+        showToast(t('app.loadedFromServer'));
       } catch (error) {
         console.error('从短码加载内容失败:', error);
 
-        const errorContent = `# 加载失败
+        const errorContent = `# ${t('app.loadFailedTitle')}
 
-无法从短链接加载内容。
+${t('app.cannotLoadFromShortLink')}
 
-**错误信息：** ${error.message}
+**${t('app.errorMessage')}** ${error.message}
 
-## 可能的原因
+## ${t('app.possibleCauses')}
 
-1. 短链接已过期
-2. 短链接不存在
-3. 网络连接问题
+1. ${t('app.shortLinkCause1')}
+2. ${t('app.shortLinkCause2')}
+3. ${t('app.shortLinkCause3')}
 
-## 解决方案
+## ${t('app.solutions')}
 
-- 确认短链接是否正确
-- 检查短链接是否已过期
-- 检查网络连接
+- ${t('app.shortLinkSolution1')}
+- ${t('app.shortLinkSolution2')}
+- ${t('app.shortLinkSolution3')}
 
 ---
 
-您可以手动复制 Markdown 内容到编辑器中。`;
+${t('app.manualCopyHint')}`;
         setMarkdown(errorContent);
-        showToast('加载失败，请检查短链接', 'error');
+        showToast(t('app.shortLinkLoadFailed'), 'error');
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   // 从 URL 加载内容
@@ -302,9 +316,9 @@ export default function App() {
         const decoded = decodeURIComponent(content);
         setMarkdown(decoded);
         setIsPreviewMode(true);
-        showToast('已从短链接加载内容');
+        showToast(t('app.loadedFromShortLink'));
       } catch (error) {
-        showToast('加载失败，请检查链接', 'error');
+        showToast(t('app.loadFailed'), 'error');
       }
       return;
     }
@@ -314,9 +328,9 @@ export default function App() {
       if (decoded) {
         setMarkdown(decoded);
         setIsPreviewMode(true);
-        showToast('已从 URL 加载内容');
+        showToast(t('app.loadedFromUrl'));
       } else {
-        showToast('解码失败，请检查链接', 'error');
+        showToast(t('app.decodeFailed'), 'error');
       }
     } else {
       // 从本地存储加载（仅在未从 useUndoRedo 恢复时）
@@ -324,13 +338,13 @@ export default function App() {
         const saved = localStorage.getItem('markdown-preview-content');
         if (saved) {
           setMarkdown(saved);
-          showToast('已从本地存储恢复内容');
+          showToast(t('app.restoredFromStorage'));
         }
       } else {
-        showToast('已从本地存储恢复内容和编辑历史');
+        showToast(t('app.restoredFromStorageWithHistory'));
       }
     }
-  }, [showToast, isRestored, loadFromShortCode, loadFromSource]);
+  }, [showToast, isRestored, loadFromShortCode, loadFromSource, t]);
 
   // 保存到本地存储
   useEffect(() => {
@@ -408,54 +422,54 @@ export default function App() {
       const template = templates[index];
       setMarkdown(template.content);
       setShowTemplateModal(false);
-      showToast(`已加载模板：${template.name}`);
+      showToast(t('app.templateLoaded', { name: template.name }));
     },
-    [setMarkdown],
+    [setMarkdown, t],
   );
 
   // 清空内容
   const handleClear = useCallback(() => {
-    if (confirm('确定要清空所有内容吗？')) {
+    if (confirm(t('app.confirmClear'))) {
       setMarkdown('');
-      showToast('内容已清空');
+      showToast(t('app.contentCleared'));
     }
-  }, [setMarkdown]);
+  }, [setMarkdown, t]);
 
   // 生成分享链接
   const handleShareLink = useCallback(() => {
     const trimmed = markdown.trim();
     if (!trimmed) {
-      showToast('请先输入 Markdown 内容', 'error');
+      showToast(t('app.enterMarkdownFirst'), 'error');
       return;
     }
 
     const encoded = encodeData(trimmed);
     if (!encoded) {
-      showToast('编码失败，内容可能过大', 'error');
+      showToast(t('app.encodeFailed'), 'error');
       return;
     }
 
     const url = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
 
     if (url.length > 8000) {
-      showToast('警告：链接较长，某些浏览器可能无法正常访问', 'error');
+      showToast(t('app.linkTooLongWarning'), 'error');
     }
 
     navigator.clipboard
       .writeText(url)
       .then(() => {
-        showToast('分享链接已复制到剪贴板！');
+        showToast(t('app.linkCopied'));
       })
       .catch(() => {
-        prompt('请复制以下链接：', url);
+        prompt(t('app.copyLink'), url);
       });
-  }, [markdown, showToast]);
+  }, [markdown, showToast, t]);
 
   // 生成短链接
   const handleShortUrl = useCallback(async () => {
     const trimmed = markdown.trim();
     if (!trimmed) {
-      showToast('请先输入 Markdown 内容', 'error');
+      showToast(t('app.enterMarkdownFirst'), 'error');
       return;
     }
 
@@ -467,7 +481,7 @@ export default function App() {
       // 先压缩数据
       const encoded = encodeData(trimmed);
       if (!encoded) {
-        showToast('编码失败，内容可能过大', 'error');
+        showToast(t('app.encodeFailed'), 'error');
         return;
       }
 
@@ -479,13 +493,13 @@ export default function App() {
       const ttlHours = shortLinkConfig.ttl;
       let ttlText = '';
       if (ttlHours >= 720) {
-        ttlText = `${Math.floor(ttlHours / 720)}个月`;
+        ttlText = t('app.months', { count: Math.floor(ttlHours / 720) });
       } else if (ttlHours >= 168) {
-        ttlText = `${Math.floor(ttlHours / 168)}周`;
+        ttlText = t('app.weeks', { count: Math.floor(ttlHours / 168) });
       } else if (ttlHours >= 24) {
-        ttlText = `${Math.floor(ttlHours / 24)}天`;
+        ttlText = t('app.days', { count: Math.floor(ttlHours / 24) });
       } else {
-        ttlText = `${ttlHours}小时`;
+        ttlText = t('app.hours', { count: ttlHours });
       }
 
       navigator.clipboard
@@ -494,21 +508,24 @@ export default function App() {
           // 根据有效期设置不同的显示时长
           const toastDuration = ttlHours >= 168 ? 5000 : 3000;
           showToast(
-            `短链接已复制到剪贴板！(${ttlText}有效)`,
+            t('app.shortLinkCopied', { ttl: ttlText }),
             'success',
             toastDuration,
           );
         })
         .catch(() => {
-          prompt('请复制以下短链接：', shortUrl);
+          prompt(t('app.copyShortLink'), shortUrl);
         });
     } catch (error) {
       console.error('生成短链接失败:', error);
-      showToast(`生成短链接失败: ${error.message}`, 'error');
+      showToast(
+        t('app.shortLinkGenerateFailed', { message: error.message }),
+        'error',
+      );
     } finally {
       setIsGeneratingShortUrl(false);
     }
-  }, [markdown, showToast]);
+  }, [markdown, showToast, t]);
 
   // 生成默认文件名
   const generateFileName = useCallback(
@@ -534,11 +551,11 @@ export default function App() {
   const handleExportHtml = useCallback(async () => {
     const trimmed = markdown.trim();
     if (!trimmed) {
-      showToast('没有可导出的内容', 'error');
+      showToast(t('app.nothingToExport'), 'error');
       return;
     }
 
-    showToast('正在渲染图表...', 'success');
+    showToast(t('app.renderingCharts'), 'success');
 
     const themeStyles = isDarkTheme
       ? {
@@ -813,14 +830,14 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
 
-    showToast('HTML 文件已导出');
-  }, [markdown, isDarkTheme, previewWidth, generateFileName]);
+    showToast(t('app.htmlExported'));
+  }, [markdown, isDarkTheme, previewWidth, generateFileName, t]);
 
   // 导出 Markdown
   const handleExportMarkdown = useCallback(async () => {
     const trimmed = markdown.trim();
     if (!trimmed) {
-      showToast('没有可导出的内容', 'error');
+      showToast(t('app.nothingToExport'), 'error');
       return;
     }
 
@@ -830,7 +847,7 @@ export default function App() {
       const fileName = generateFileName('md').replace('.md', '');
       await exportMarkdownAsZip(trimmed, fileName);
       setShowExportMenu(false);
-      showToast('已导出为压缩包（包含图片文件）');
+      showToast(t('app.exportedAsZip'));
     } else {
       // 普通导出
       const blob = new Blob([trimmed], { type: 'text/markdown' });
@@ -842,9 +859,9 @@ export default function App() {
       URL.revokeObjectURL(url);
 
       setShowExportMenu(false);
-      showToast('Markdown 文件已导出');
+      showToast(t('app.markdownExported'));
     }
-  }, [markdown, generateFileName, showToast]);
+  }, [markdown, generateFileName, showToast, t]);
 
   // 处理文件导入
   const handleFileImport = useCallback(
@@ -855,14 +872,14 @@ export default function App() {
       reader.onload = (e) => {
         const content = e.target.result;
         setMarkdown(content);
-        showToast(`已导入文件：${file.name}`);
+        showToast(t('app.fileImported', { name: file.name }));
       };
       reader.onerror = () => {
-        showToast('文件读取失败', 'error');
+        showToast(t('app.fileReadFailed'), 'error');
       };
       reader.readAsText(file);
     },
-    [setMarkdown],
+    [setMarkdown, t],
   );
 
   // 处理拖拽上传
@@ -878,11 +895,11 @@ export default function App() {
         if (file.name.endsWith('.md') || file.type === 'text/markdown') {
           handleFileImport(file);
         } else {
-          showToast('请上传 .md 文件', 'error');
+          showToast(t('app.uploadMdFile'), 'error');
         }
       }
     },
-    [handleFileImport],
+    [handleFileImport, t],
   );
 
   const handleDragOver = useCallback((e) => {
@@ -933,14 +950,14 @@ export default function App() {
               height="32"
               style={{ verticalAlign: 'middle', marginRight: '8px' }}
             />
-            Markdown 在线预览
+            {t('app.title')}
           </h1>
         </div>
         <div className="header-right">
           <button
             className="btn btn-secondary"
             onClick={toggleMode}
-            title="切换模式"
+            title={t('app.toggleMode')}
           >
             <svg
               className="icon"
@@ -968,7 +985,7 @@ export default function App() {
           <button
             className="btn btn-secondary"
             onClick={toggleTheme}
-            title="切换主题"
+            title={t('app.toggleTheme')}
           >
             <svg
               className="icon"
@@ -1005,7 +1022,7 @@ export default function App() {
             <button
               className="btn btn-secondary"
               onClick={() => setShowShareMenu(!showShareMenu)}
-              title="分享"
+              title={t('app.share')}
             >
               <svg
                 className="icon"
@@ -1063,7 +1080,7 @@ export default function App() {
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                   </svg>
-                  永久长链接
+                  {t('app.permanentLink')}
                 </button>
                 <button
                   className="export-menu-item"
@@ -1088,7 +1105,7 @@ export default function App() {
                       >
                         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                       </svg>
-                      生成中...
+                      {t('app.generating')}
                     </>
                   ) : (
                     <>
@@ -1105,7 +1122,7 @@ export default function App() {
                       >
                         <path d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1" />
                       </svg>
-                      临时短链接（24小时）
+                      {t('app.temporaryLink')}
                     </>
                   )}
                 </button>
@@ -1117,7 +1134,7 @@ export default function App() {
             <button
               className="btn btn-secondary"
               onClick={() => setShowExportMenu(!showExportMenu)}
-              title="导出"
+              title={t('app.export')}
             >
               <svg
                 className="icon"
@@ -1155,7 +1172,7 @@ export default function App() {
                     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
-                  导出 Markdown
+                  {t('app.exportMarkdown')}
                 </button>
                 <button
                   className="export-menu-item"
@@ -1181,7 +1198,7 @@ export default function App() {
                     <line x1="16" x2="8" y1="17" y2="17" />
                     <line x1="10" x2="8" y1="9" y2="9" />
                   </svg>
-                  导出 HTML
+                  {t('app.exportHtml')}
                 </button>
               </div>
             )}
@@ -1197,7 +1214,7 @@ export default function App() {
           <button
             className="btn btn-secondary"
             onClick={() => setShowImageUploadSettings(true)}
-            title="设置"
+            title={t('app.settings')}
           >
             <svg
               className="icon"
@@ -1218,7 +1235,7 @@ export default function App() {
             href="https://github.com/AriesYB/markdown-in-url"
             target="_blank"
             className="btn btn-secondary github-link"
-            title="GitHub 仓库"
+            title={t('app.githubRepo')}
           >
             <svg
               className="icon"
@@ -1230,6 +1247,7 @@ export default function App() {
               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
             </svg>
           </a>
+          <LanguageSwitcher />
         </div>
       </header>
 

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import './UploadProgress.css';
 
 export default function UploadProgress({ uploads, onCancelUpload }) {
@@ -22,6 +23,7 @@ export default function UploadProgress({ uploads, onCancelUpload }) {
 }
 
 function UploadItem({ upload, onCancel }) {
+  const { t } = useTranslation();
   const { fileName, progress, status, error } = upload;
   const progressPercent = progress
     ? Math.round((progress.loaded / progress.total) * 100)
@@ -33,7 +35,7 @@ function UploadItem({ upload, onCancel }) {
         <span className="upload-file-name">{fileName}</span>
         {status === 'uploading' && (
           <button className="upload-cancel" onClick={onCancel}>
-            取消
+            {t('uploadProgress.cancelled')}
           </button>
         )}
         {status === 'success' && (
@@ -59,7 +61,9 @@ function UploadItem({ upload, onCancel }) {
       )}
 
       {status === 'success' && (
-        <div className="upload-success-message">上传成功</div>
+        <div className="upload-success-message">
+          {t('uploadProgress.uploadComplete')}
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './TableOfContents.css';
 
 export default function TableOfContents({
@@ -7,6 +8,7 @@ export default function TableOfContents({
   onHeadingClick,
   isVisible,
 }) {
+  const { t } = useTranslation();
   const tocRef = useRef(null);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function TableOfContents({
   return (
     <div className={`toc ${isVisible ? '' : 'hidden'}`} ref={tocRef}>
       <div className="toc-header">
-        <span className="toc-title">目录</span>
+        <span className="toc-title">{t('preview.tableOfContents')}</span>
         <button className="toc-close" onClick={() => onHeadingClick(null)}>
           &times;
         </button>
@@ -37,7 +39,7 @@ export default function TableOfContents({
               fontSize: '13px',
             }}
           >
-            暂无目录
+            {t('preview.tableOfContents')}
           </div>
         ) : (
           headings.map((heading) => (

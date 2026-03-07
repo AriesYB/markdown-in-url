@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   getImageUploadConfig,
   saveImageUploadConfig,
@@ -133,6 +134,7 @@ export default function ImageUploadSettings({
   onClose,
   onConfigChange,
 }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState(null);
   const [customConfig, setCustomConfig] = useState({
     endpoint: '',
@@ -200,7 +202,7 @@ export default function ImageUploadSettings({
       ) {
         setTestResult({
           type: 'error',
-          message: '请填写所有必填字段',
+          message: t('settings.fillRequiredFields'),
         });
         return;
       }
@@ -239,11 +241,7 @@ export default function ImageUploadSettings({
   };
 
   const handleClearCache = () => {
-    if (
-      confirm(
-        '确定要清除所有本地缓存的内容吗？这将释放存储空间，但已过期的短链接内容将无法恢复。',
-      )
-    ) {
+    if (confirm(t('settings.confirmClearCache'))) {
       clearAllCachedContent();
       setCachedContentSize(0);
       setTestResult({
@@ -266,7 +264,7 @@ export default function ImageUploadSettings({
       ) {
         setTestResult({
           type: 'error',
-          message: '请填写所有必填字段',
+          message: t('settings.fillRequiredFields'),
         });
         return;
       }
@@ -283,12 +281,12 @@ export default function ImageUploadSettings({
 
         setTestResult({
           type: 'success',
-          message: '配置测试成功！图床连接正常。',
+          message: t('settings.testSuccess'),
         });
       } catch (error) {
         setTestResult({
           type: 'error',
-          message: `配置测试失败：${error.message}`,
+          message: `${t('settings.testFailed')}: ${error.message}`,
         });
       } finally {
         setIsTesting(false);
@@ -297,7 +295,7 @@ export default function ImageUploadSettings({
       if (!cfWorkerUrl || cfWorkerUrl === 'https://your-worker.workers.dev') {
         setTestResult({
           type: 'error',
-          message: '请输入有效的 Cloudflare Workers API 地址',
+          message: t('settings.fillRequiredFields'),
         });
         return;
       }
@@ -315,20 +313,18 @@ export default function ImageUploadSettings({
         if (result.success) {
           setTestResult({
             type: 'success',
-            message:
-              result.message ||
-              '配置测试成功！Cloudflare Workers API 连接正常。',
+            message: result.message || t('settings.testSuccess'),
           });
         } else {
           setTestResult({
             type: 'error',
-            message: result.message || '配置测试失败',
+            message: result.message || t('settings.testFailed'),
           });
         }
       } catch (error) {
         setTestResult({
           type: 'error',
-          message: `配置测试失败：${error.message}`,
+          message: `${t('settings.testFailed')}: ${error.message}`,
         });
       } finally {
         setIsTesting(false);
@@ -347,7 +343,7 @@ export default function ImageUploadSettings({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>设置</h2>
+          <h2>{t('settings.title')}</h2>
           <button className="modal-close" onClick={onClose}>
             <svg
               viewBox="0 0 24 24"
@@ -365,7 +361,7 @@ export default function ImageUploadSettings({
         <div className="modal-body">
           {/* 图床模式选择 */}
           <div className="setting-section">
-            <h3>选择图床模式</h3>
+            <h3>{t('settings.imageUploadSettings')}</h3>
             <div className="mode-selector">
               <label
                 className={`mode-option ${mode === 'cf-worker' ? 'active' : ''}`}
@@ -378,8 +374,8 @@ export default function ImageUploadSettings({
                   onChange={() => handleModeChange('cf-worker')}
                 />
                 <div className="mode-option-content">
-                  <span className="mode-title">公共图床服务</span>
-                  <span className="mode-desc">使用公共图床上传图片</span>
+                  <span className="mode-title">{t('settings.publicMode')}</span>
+                  <span className="mode-desc">{t('settings.publicMode')}</span>
                 </div>
               </label>
 
@@ -394,10 +390,8 @@ export default function ImageUploadSettings({
                   onChange={() => handleModeChange('base64')}
                 />
                 <div className="mode-option-content">
-                  <span className="mode-title">Base64 编码</span>
-                  <span className="mode-desc">
-                    图片直接嵌入 Markdown（不推荐大图）
-                  </span>
+                  <span className="mode-title">Base64</span>
+                  <span className="mode-desc">{t('settings.publicMode')}</span>
                 </div>
               </label>
             </div>
@@ -406,10 +400,10 @@ export default function ImageUploadSettings({
           {/* 公共图床服务配置 */}
           {mode === 'cf-worker' && (
             <div className="setting-section">
-              <h3>公共图床服务</h3>
+              <h3>{t('settings.publicMode')}</h3>
               <div className="config-form">
                 <div className="cf-worker-info">
-                  <h4>功能说明</h4>
+                  <h4>{t('settings.imageUploadSettings')}</h4>
                   <ul>
                     <li>
                       <strong>图床上传</strong>：支持上传图片到对象存储，返回
@@ -427,7 +421,7 @@ export default function ImageUploadSettings({
           {/* Base64 说明 */}
           {mode === 'base64' && (
             <div className="setting-section">
-              <h3>Base64 模式说明</h3>
+              <h3>Base64 Mode</h3>
               <div className="base64-info">
                 <p>图片将以 Base64 编码直接嵌入到 Markdown 文档中。</p>
                 <p className="info-warning">
@@ -440,26 +434,31 @@ export default function ImageUploadSettings({
 
           {/* 短链接配置（独立于图床配置） */}
           <div className="setting-section">
-            <h3>短链接设置</h3>
+            <h3>{t('settings.shortLinkSettings')}</h3>
             <div className="short-link-config">
               <div className="config-row">
                 <label>
-                  过期时间：
+                  {t('settings.shortLinkTTL')}：
                   <select
                     value={shortLinkTTL}
                     onChange={(e) => setShortLinkTTL(Number(e.target.value))}
                   >
-                    <option value="24">1天</option>
-                    <option value="72">3天</option>
-                    <option value="168">7天</option>
-                    <option value="720">30天</option>
+                    <option value="24">1 {t('app.days', { count: '' })}</option>
+                    <option value="72">3 {t('app.days', { count: '' })}</option>
+                    <option value="168">
+                      7 {t('app.days', { count: '' })}
+                    </option>
+                    <option value="720">
+                      30 {t('app.days', { count: '' })}
+                    </option>
                   </select>
                 </label>
               </div>
 
               <div className="cache-info">
                 <p className="cache-size">
-                  本地缓存大小：{(cachedContentSize / 1024).toFixed(2)} KB
+                  {t('settings.cachedContentSize')}：
+                  {(cachedContentSize / 1024).toFixed(2)} KB
                 </p>
                 <div className="cache-buttons">
                   <button
@@ -467,13 +466,13 @@ export default function ImageUploadSettings({
                     onClick={handleClearCache}
                     disabled={cachedContentSize === 0}
                   >
-                    清除本地缓存
+                    {t('settings.clearCache')}
                   </button>
                   <button
                     className="btn-text btn-text-danger"
                     onClick={handleClear}
                   >
-                    清除配置
+                    {t('settings.clear')}
                   </button>
                 </div>
               </div>
@@ -483,7 +482,7 @@ export default function ImageUploadSettings({
 
         <div className="modal-footer">
           <button className="btn-primary" onClick={handleSave}>
-            保存设置
+            {t('settings.save')}
           </button>
         </div>
       </div>
