@@ -10,7 +10,6 @@ import css from 'highlight.js/lib/languages/css';
 import bash from 'highlight.js/lib/languages/bash';
 import json from 'highlight.js/lib/languages/json';
 import sql from 'highlight.js/lib/languages/sql';
-import 'highlight.js/styles/github-dark.css';
 import './Preview.css';
 import TableOfContents from './TableOfContents';
 
@@ -48,6 +47,27 @@ export default function Preview({
   const closeImagePreview = () => {
     setPreviewImage(null);
   };
+
+  // 动态加载 highlight.js 样式
+  useEffect(() => {
+    const loadHighlightJsTheme = async () => {
+      // 移除旧的样式
+      const oldLink = document.getElementById('hljs-theme');
+      if (oldLink) {
+        oldLink.remove();
+      }
+
+      // 根据主题选择样式文件
+      const theme = isDarkTheme ? 'github-dark' : 'github';
+      const link = document.createElement('link');
+      link.id = 'hljs-theme';
+      link.rel = 'stylesheet';
+      link.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${theme}.min.css`;
+      document.head.appendChild(link);
+    };
+
+    loadHighlightJsTheme();
+  }, [isDarkTheme]);
 
   // 初始化 Mermaid
   useEffect(() => {
