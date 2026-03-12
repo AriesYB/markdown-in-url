@@ -146,6 +146,7 @@ export default function App() {
   const isSyncingScroll = useRef(false);
   const editorScrollPosition = useRef(0);
   const previewScrollPosition = useRef(0);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
 
   // 菜单 refs
   const exportMenuRef = useRef(null);
@@ -385,25 +386,33 @@ ${t('app.manualCopyHint')}`;
   }, []);
 
   // 处理预览区滚动
-  const handlePreviewScroll = useCallback((scrollTop) => {
-    if (!isSyncingScroll.current && previewRef.current && editorRef.current) {
-      isSyncingScroll.current = true;
+  const handlePreviewScroll = useCallback(
+    (scrollTop) => {
+      // 如果编辑器聚焦，则不同步滚动到编辑器
+      if (isEditorFocused) {
+        return;
+      }
 
-      // 计算滚动百分比
-      const preview = previewRef.current;
-      const scrollPercentage =
-        scrollTop / (preview.scrollHeight - preview.clientHeight);
+      if (!isSyncingScroll.current && previewRef.current && editorRef.current) {
+        isSyncingScroll.current = true;
 
-      // 同步到编辑器（移除 isPreviewMode 限制，始终同步）
-      const editor = editorRef.current;
-      editor.scrollTop =
-        scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+        // 计算滚动百分比
+        const preview = previewRef.current;
+        const scrollPercentage =
+          scrollTop / (preview.scrollHeight - preview.clientHeight);
 
-      requestAnimationFrame(() => {
-        isSyncingScroll.current = false;
-      });
-    }
-  }, []);
+        // 同步到编辑器
+        const editor = editorRef.current;
+        editor.scrollTop =
+          scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+
+        requestAnimationFrame(() => {
+          isSyncingScroll.current = false;
+        });
+      }
+    },
+    [isEditorFocused],
+  );
 
   // 切换主题
   const toggleTheme = useCallback(() => {
@@ -1293,6 +1302,7 @@ ${t('app.manualCopyHint')}`;
             onSetPendingPasteImage={setPendingPasteImage}
             cursorPosition={cursorPosition}
             scrollPosition={scrollPosition}
+            onEditorFocusChange={setIsEditorFocused}
           />
         )}
 

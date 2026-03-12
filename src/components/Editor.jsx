@@ -24,6 +24,7 @@ export default function Editor({
   pendingPasteImage,
   cursorPosition,
   scrollPosition,
+  onEditorFocusChange,
 }) {
   const { t } = useTranslation();
   const textareaRef = useRef(null);
@@ -222,6 +223,16 @@ export default function Editor({
     },
     [onUndo, onRedo, onChange, value],
   );
+
+  // 处理聚焦
+  const handleFocus = useCallback(() => {
+    onEditorFocusChange?.(true);
+  }, [onEditorFocusChange]);
+
+  // 处理失焦
+  const handleBlur = useCallback(() => {
+    onEditorFocusChange?.(false);
+  }, [onEditorFocusChange]);
 
   // 处理滚动
   const handleScroll = useCallback(
@@ -542,6 +553,8 @@ export default function Editor({
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onPaste={handlePaste}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           placeholder={t('editor.placeholder')}
           spellCheck={false}
         />
