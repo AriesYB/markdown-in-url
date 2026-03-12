@@ -5,7 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
  * @param {any} initialValue - 初始值
  * @param {number} maxSize - 最大历史记录数量
  * @param {string} storageKey - localStorage 存储键名
- * @returns {object} - { value, setValue, undo, redo, canUndo, canRedo, reset }
+ * @returns {object} - { value, setValue, undo, redo, canUndo, canRedo, reset, cursorPosition, scrollPosition }
  */
 export function useUndoRedo(
   initialValue,
@@ -48,7 +48,17 @@ export function useUndoRedo(
 
   // 初始化状态
   const savedData = loadFromStorage();
-  const initialHistory = savedData ? savedData.history : [initialValue];
+
+  // 初始化历史记录，每个记录包含 content, cursorPosition, scrollPosition
+  const initialHistory = savedData
+    ? savedData.history
+    : [
+        {
+          content: initialValue,
+          cursorPosition: 0,
+          scrollPosition: 0,
+        },
+      ];
   const initialIndex = savedData ? savedData.index : 0;
   const isRestored = savedData !== null;
 
@@ -56,7 +66,8 @@ export function useUndoRedo(
   const currentIndexRef = useRef(initialIndex);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
-  const value = history[currentIndex];
+  const currentValue = history[currentIndex];
+  const value = currentValue?.content || '';
   const canUndo = currentIndex > 0;
   const canRedo = currentIndex < history.length - 1;
 
@@ -66,9 +77,13 @@ export function useUndoRedo(
   }, [history, currentIndex, saveToStorage]);
 
   const setValue = useCallback(
-    (newValue) => {
+    (newValue, cursorPos = 0, scrollPos = 0) => {
       const newHistory = history.slice(0, currentIndexRef.current + 1);
-      newHistory.push(newValue);
+      newHistory.push({
+        content: newValue,
+        cursorPosition: cursorPos,
+        scrollPosition: scrollPos,
+      });
 
       // 限制历史记录大小
       if (newHistory.length > maxSize) {
@@ -99,8 +114,14 @@ export function useUndoRedo(
   }, [canRedo, currentIndex]);
 
   const reset = useCallback(
-    (newValue) => {
-      const newHistory = [newValue];
+    (newValue, cursorPos = 0, scrollPos = 0) => {
+      const newHistory = [
+        {
+          content: newValue,
+          cursorPosition: cursorPos,
+          scrollPosition: scrollPos,
+        },
+      ];
       setHistory(newHistory);
       currentIndexRef.current = 0;
       setCurrentIndex(0);
@@ -118,5 +139,7 @@ export function useUndoRedo(
     canRedo,
     reset,
     isRestored,
+    cursorPosition: currentValue?.cursorPosition || 0,
+    scrollPosition: currentValue?.scrollPosition || 0,
   };
 }

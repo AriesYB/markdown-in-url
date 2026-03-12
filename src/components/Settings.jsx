@@ -17,7 +17,7 @@ import {
   isCloudflareConfigured,
   testConnection,
 } from '../utils/cloudflareAPI';
-import './ImageUploadSettings.css';
+import './Settings.css';
 
 // 本地存储键
 const SHORT_LINK_CONFIG_KEY = 'short-link-config';
@@ -76,22 +76,76 @@ export function clearAllCachedContent() {
 
 /**
  * 获取所有缓存内容的存储大小（字节）
+ * 包括：短链接缓存内容 + markdown撤销历史 + 其他所有localStorage数据
  */
 export function getCachedContentSize() {
   try {
     let totalSize = 0;
     const keys = Object.keys(localStorage);
     keys.forEach((key) => {
-      if (key.startsWith(CACHED_CONTENT_KEY_PREFIX)) {
-        const value = localStorage.getItem(key);
-        if (value) {
-          totalSize += key.length + value.length;
-        }
+      const value = localStorage.getItem(key);
+      if (value) {
+        // 计算键和值的大小（每个字符2字节，UTF-16编码）
+        totalSize += (key.length + value.length) * 2;
       }
     });
     return totalSize;
   } catch (e) {
     console.error('Failed to calculate cached content size:', e);
+    return 0;
+  }
+}
+
+/**
+ * 获取配置数据的存储大小（字节）
+ * 包括：图床配置、短链接配置、主题设置等（不包括缓存内容和markdown历史）
+ */
+export function getConfigSize() {
+  try {
+    let totalSize = 0;
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      // 排除缓存内容和markdown历史
+      if (
+        !key.startsWith(CACHED_CONTENT_KEY_PREFIX) &&
+        key !== 'markdown-undo-history'
+      ) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          totalSize += (key.length + value.length) * 2;
+        }
+      }
+    });
+    return totalSize;
+  } catch (e) {
+    console.error('Failed to calculate config size:', e);
+    return 0;
+  }
+}
+
+/**
+ * 获取缓存内容的存储大小（字节）
+ * 包括：短链接缓存内容、markdown历史等所有非配置数据
+ */
+export function getCacheOnlySize() {
+  try {
+    let totalSize = 0;
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      // 只计算缓存内容和markdown历史
+      if (
+        key.startsWith(CACHED_CONTENT_KEY_PREFIX) ||
+        key === 'markdown-undo-history'
+      ) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          totalSize += (key.length + value.length) * 2;
+        }
+      }
+    });
+    return totalSize;
+  } catch (e) {
+    console.error('Failed to calculate cache only size:', e);
     return 0;
   }
 }
@@ -129,11 +183,7 @@ export function getCachedShortLinkContent(code) {
   return null;
 }
 
-export default function ImageUploadSettings({
-  isOpen,
-  onClose,
-  onConfigChange,
-}) {
+export default function Settings({ isOpen, onClose, onConfigChange }) {
   const { t } = useTranslation();
   const [mode, setMode] = useState(null);
   const [customConfig, setCustomConfig] = useState({
@@ -153,6 +203,7 @@ export default function ImageUploadSettings({
   // 短链接配置
   const [shortLinkTTL, setShortLinkTTL] = useState(168); // 7天（168小时）
   const [cachedContentSize, setCachedContentSize] = useState(0);
+  const [configSize, setConfigSize] = useState(0);
 
   // 加载当前配置
   useEffect(() => {
@@ -173,8 +224,9 @@ export default function ImageUploadSettings({
     // 加载短链接配置
     const shortLinkConfig = getShortLinkConfig();
     setShortLinkTTL(shortLinkConfig.ttl || 168);
-    // 更新缓存内容大小
-    setCachedContentSize(getCachedContentSize());
+    // 更新缓存内容大小和配置大小
+    setCachedContentSize(getCacheOnlySize());
+    setConfigSize(getConfigSize());
   }, [isOpen]);
 
   const handleModeChange = (newMode) => {
@@ -221,32 +273,48 @@ export default function ImageUploadSettings({
     onClose?.();
   };
 
-  const handleClear = () => {
-    clearImageUploadConfig();
-    clearCloudflareConfig();
-    clearShortLinkConfig();
-    setMode(null);
-    setCustomConfig({
-      endpoint: '',
-      accessKeyId: '',
-      secretAccessKey: '',
-      bucket: '',
-      publicUrl: '',
-      region: 'auto',
-    });
-    setCfWorkerUrl('https://md.ntrbiss.top');
-    setShortLinkTTL(168);
-    onConfigChange?.();
-    onClose?.();
+  const handleClearConfig = () => {
+    if (confirm(t('settings.confirmClearConfig'))) {
+      // 清除所有配置（图床配置、短链接配置、主题设置等）
+      clearImageUploadConfig();
+      clearCloudflareConfig();
+      clearShortLinkConfig();
+      // 清除主题、预览模式等设置
+      localStorage.removeItem('markdown-preview-theme');
+      localStorage.removeItem('markdown-preview-mode');
+      localStorage.removeItem('markdown-preview-width');
+      localStorage.removeItem('markdown-preview-toc-hidden');
+
+      setMode(null);
+      setCustomConfig({
+        endpoint: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+        bucket: '',
+        publicUrl: '',
+        region: 'auto',
+      });
+      setCfWorkerUrl('https://md.ntrbiss.top');
+      setShortLinkTTL(168);
+      // 更新配置大小
+      setConfigSize(getConfigSize());
+      onConfigChange?.();
+      setTestResult({
+        type: 'success',
+        message: '已清除所有设置',
+      });
+    }
   };
 
   const handleClearCache = () => {
     if (confirm(t('settings.confirmClearCache'))) {
+      // 清除所有缓存（短链接缓存、markdown历史等）
       clearAllCachedContent();
+      localStorage.removeItem('markdown-undo-history');
       setCachedContentSize(0);
       setTestResult({
         type: 'success',
-        message: '已清除所有本地缓存内容',
+        message: '已清除所有缓存内容',
       });
     }
   };
@@ -456,25 +524,27 @@ export default function ImageUploadSettings({
               </div>
 
               <div className="cache-info">
-                <p className="cache-size">
-                  {t('settings.cachedContentSize')}：
-                  {(cachedContentSize / 1024).toFixed(2)} KB
-                </p>
                 <div className="cache-buttons">
                   <button
                     className="btn-text"
                     onClick={handleClearCache}
                     disabled={cachedContentSize === 0}
                   >
-                    {t('settings.clearCache')}
+                    {t('settings.clearCache')} (
+                    {(cachedContentSize / 1024).toFixed(2)} KB)
                   </button>
                   <button
                     className="btn-text btn-text-danger"
-                    onClick={handleClear}
+                    onClick={handleClearConfig}
                   >
-                    {t('settings.clear')}
+                    {t('settings.clearConfig')} (
+                    {(configSize / 1024).toFixed(2)} KB)
                   </button>
                 </div>
+                <p className="cache-size">
+                  {t('settings.totalSize')}：
+                  {((cachedContentSize + configSize) / 1024).toFixed(2)} KB
+                </p>
               </div>
             </div>
           </div>

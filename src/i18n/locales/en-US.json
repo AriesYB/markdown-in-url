@@ -103,10 +103,11 @@
   "settings": {
     "title": "Settings",
     "fillRequiredFields": "Please fill in all required fields",
-    "confirmClearCache": "Are you sure you want to clear all locally cached content? This will free up storage space, but expired short link content will not be recoverable.",
+    "confirmClearCache": "Are you sure you want to clear all cached content? This will clear short link cache, markdown edit history and all other cached data.",
+    "confirmClearConfig": "Are you sure you want to clear all settings? This will clear image hosting configuration, short link configuration, theme settings and all other configuration items.",
     "cacheCleared": "Cache cleared",
     "configSaved": "Configuration saved",
-    "configCleared": "Configuration cleared",
+    "configCleared": "Settings cleared",
     "testConnection": "Test Connection",
     "testing": "Testing...",
     "testSuccess": "Connection successful",
@@ -127,8 +128,10 @@
     "shortLinkTTL": "Short Link Validity Period",
     "cachedContentSize": "Cached Content Size",
     "clearCache": "Clear Cache",
+    "clearConfig": "Clear Settings",
+    "totalSize": "Total Size",
     "save": "Save",
-    "clear": "Clear Configuration"
+    "clear": "Clear Settings"
   },
   "preview": {
     "title": "Preview",

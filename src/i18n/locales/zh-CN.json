@@ -103,10 +103,11 @@
   "settings": {
     "title": "设置",
     "fillRequiredFields": "请填写所有必填字段",
-    "confirmClearCache": "确定要清除所有本地缓存的内容吗？这将释放存储空间，但已过期的短链接内容将无法恢复。",
+    "confirmClearCache": "确定要清除所有缓存内容吗？这将清除短链接缓存、markdown编辑历史等所有缓存数据。",
+    "confirmClearConfig": "确定要清除所有设置吗？这将清除图床配置、短链接配置、主题设置等所有配置项。",
     "cacheCleared": "缓存已清除",
     "configSaved": "配置已保存",
-    "configCleared": "配置已清除",
+    "configCleared": "设置已清除",
     "testConnection": "测试连接",
     "testing": "测试中...",
     "testSuccess": "连接成功",
@@ -127,8 +128,10 @@
     "shortLinkTTL": "短链接有效期",
     "cachedContentSize": "缓存内容大小",
     "clearCache": "清除缓存",
+    "clearConfig": "清除设置",
+    "totalSize": "总占用",
     "save": "保存",
-    "clear": "清除配置"
+    "clear": "清除设置"
   },
   "preview": {
     "title": "预览",

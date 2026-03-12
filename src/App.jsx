@@ -18,11 +18,11 @@ import {
   getShortLinkConfig,
   cacheShortLinkContent,
   getCachedShortLinkContent,
-} from './components/ImageUploadSettings';
+} from './components/Settings';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import TemplateModal from './components/TemplateModal';
-import ImageUploadSettings from './components/ImageUploadSettings';
+import Settings from './components/Settings';
 import UploadProgress from './components/UploadProgress';
 import Toast from './components/Toast';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -110,6 +110,8 @@ export default function App() {
     canUndo,
     canRedo,
     isRestored,
+    cursorPosition,
+    scrollPosition,
   } = useUndoRedo(defaultContent, 50, 'markdown-undo-history');
 
   // 状态管理
@@ -142,6 +144,8 @@ export default function App() {
   const editorRef = useRef(null);
   const previewRef = useRef(null);
   const isSyncingScroll = useRef(false);
+  const editorScrollPosition = useRef(0);
+  const previewScrollPosition = useRef(0);
 
   // 菜单 refs
   const exportMenuRef = useRef(null);
@@ -353,8 +357,8 @@ ${t('app.manualCopyHint')}`;
 
   // 处理编辑器内容变化
   const handleEditorChange = useCallback(
-    (newValue) => {
-      setMarkdown(newValue);
+    (newValue, cursorPos, scrollPos) => {
+      setMarkdown(newValue, cursorPos, scrollPos);
     },
     [setMarkdown],
   );
@@ -374,37 +378,32 @@ ${t('app.manualCopyHint')}`;
       preview.scrollTop =
         scrollPercentage * (preview.scrollHeight - preview.clientHeight);
 
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         isSyncingScroll.current = false;
-      }, 50);
+      });
     }
   }, []);
 
   // 处理预览区滚动
-  const handlePreviewScroll = useCallback(
-    (scrollTop) => {
-      if (!isSyncingScroll.current && previewRef.current && editorRef.current) {
-        isSyncingScroll.current = true;
+  const handlePreviewScroll = useCallback((scrollTop) => {
+    if (!isSyncingScroll.current && previewRef.current && editorRef.current) {
+      isSyncingScroll.current = true;
 
-        // 计算滚动百分比
-        const preview = previewRef.current;
-        const scrollPercentage =
-          scrollTop / (preview.scrollHeight - preview.clientHeight);
+      // 计算滚动百分比
+      const preview = previewRef.current;
+      const scrollPercentage =
+        scrollTop / (preview.scrollHeight - preview.clientHeight);
 
-        // 同步到编辑器（仅在预览模式下）
-        if (isPreviewMode) {
-          const editor = editorRef.current;
-          editor.scrollTop =
-            scrollPercentage * (editor.scrollHeight - editor.clientHeight);
-        }
+      // 同步到编辑器（移除 isPreviewMode 限制，始终同步）
+      const editor = editorRef.current;
+      editor.scrollTop =
+        scrollPercentage * (editor.scrollHeight - editor.clientHeight);
 
-        setTimeout(() => {
-          isSyncingScroll.current = false;
-        }, 50);
-      }
-    },
-    [isPreviewMode],
-  );
+      requestAnimationFrame(() => {
+        isSyncingScroll.current = false;
+      });
+    }
+  }, []);
 
   // 切换主题
   const toggleTheme = useCallback(() => {
@@ -413,7 +412,22 @@ ${t('app.manualCopyHint')}`;
 
   // 切换模式
   const toggleMode = useCallback(() => {
+    // 保存当前滚动位置
+    if (editorRef.current) {
+      editorScrollPosition.current = editorRef.current.scrollTop;
+    }
+    if (previewRef.current) {
+      previewScrollPosition.current = previewRef.current.scrollTop;
+    }
+
     setIsPreviewMode((prev) => !prev);
+
+    // 恢复编辑区滚动位置
+    requestAnimationFrame(() => {
+      if (editorRef.current && editorScrollPosition.current > 0) {
+        editorRef.current.scrollTop = editorScrollPosition.current;
+      }
+    });
   }, [setIsPreviewMode]);
 
   // 加载模板
@@ -1277,6 +1291,8 @@ ${t('app.manualCopyHint')}`;
             pendingPasteImage={pendingPasteImage}
             onClearPendingPasteImage={() => setPendingPasteImage(null)}
             onSetPendingPasteImage={setPendingPasteImage}
+            cursorPosition={cursorPosition}
+            scrollPosition={scrollPosition}
           />
         )}
 
@@ -1308,8 +1324,8 @@ ${t('app.manualCopyHint')}`;
         onSelect={handleLoadTemplate}
       />
 
-      {/* Image Upload Settings Modal */}
-      <ImageUploadSettings
+      {/* Settings Modal */}
+      <Settings
         isOpen={showImageUploadSettings}
         onClose={() => setShowImageUploadSettings(false)}
         onConfigChange={() => {

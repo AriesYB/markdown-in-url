@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { markdownSuggestions } from '../data/autocomplete';
 import {
   uploadImage,
   fileToBase64,
   isImageUploadConfigured,
 } from '../utils/imageUpload';
-import Autocomplete from './Autocomplete';
 import './Editor.css';
 
 export default function Editor({
@@ -24,18 +22,12 @@ export default function Editor({
   uploadManager,
   onShowImageUploadSettings,
   pendingPasteImage,
+  cursorPosition,
+  scrollPosition,
 }) {
   const { t } = useTranslation();
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
-  const [autocomplete, setAutocomplete] = useState({
-    visible: false,
-    items: [],
-    group: '',
-    activeIndex: -1,
-    trigger: '',
-    position: { top: 0, left: 0 },
-  });
 
   // 处理待粘贴的图片（配置完成后自动粘贴）
   useEffect(() => {
@@ -124,71 +116,6 @@ export default function Editor({
     [value, onChange, uploadManager],
   );
 
-  // 插入自动补全项
-  const insertAutocompleteItem = useCallback(
-    (index) => {
-      const item = autocomplete.items[index];
-      if (!item) return;
-
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const cursorPosition = textarea.selectionStart;
-      const textBeforeCursor = value.substring(0, cursorPosition);
-      const textAfterCursor = value.substring(cursorPosition);
-
-      let triggerLength = 0;
-      let keepTrigger = false;
-
-      if (autocomplete.trigger === '```') {
-        triggerLength = 0;
-        keepTrigger = true;
-      } else if (autocomplete.trigger === '#') {
-        const hashMatch = textBeforeCursor.match(/#{1,6}$/);
-        triggerLength = hashMatch ? hashMatch[0].length : 1;
-      } else if (autocomplete.trigger === '-') {
-        const listMatch = textBeforeCursor.match(/[-*]$/);
-        triggerLength = listMatch ? 1 : 0;
-      } else if (autocomplete.trigger === '*') {
-        const formatMatch = textBeforeCursor.match(/[*_]{1,2}$/);
-        triggerLength = formatMatch ? formatMatch[0].length : 1;
-      } else if (autocomplete.trigger === '>') {
-        triggerLength = 1;
-      } else if (autocomplete.trigger === '[') {
-        triggerLength = 1;
-      } else if (autocomplete.trigger === '|') {
-        triggerLength = 1;
-      } else if (autocomplete.trigger === '!') {
-        triggerLength = 1;
-      } else if (autocomplete.trigger === '---') {
-        triggerLength = 3;
-      }
-
-      let newText;
-      if (keepTrigger) {
-        newText = textBeforeCursor + item.insert + textAfterCursor;
-      } else {
-        newText =
-          textBeforeCursor.substring(
-            0,
-            textBeforeCursor.length - triggerLength,
-          ) +
-          item.insert +
-          textAfterCursor;
-      }
-
-      onChange(newText);
-
-      const newCursorPosition =
-        textBeforeCursor.length - triggerLength + item.insert.length;
-      textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
-
-      setAutocomplete((prev) => ({ ...prev, visible: false }));
-      textarea.focus();
-    },
-    [autocomplete.items, autocomplete.trigger, value, onChange],
-  );
-
   // 暴露 textarea ref 给父组件
   useEffect(() => {
     if (editorRef) {
@@ -216,152 +143,84 @@ export default function Editor({
     }
   }, [value]);
 
-  // 检查自动补全触发器
-  const checkAutocompleteTrigger = useCallback((text) => {
-    if (text.endsWith('```')) return '```';
-    const hashMatch = text.match(/(^|\n)#{1,6}$/);
-    if (hashMatch) return '#';
-    const listMatch = text.match(/(^|\n)[-*]$/);
-    if (listMatch) return '-';
-    const numListMatch = text.match(/(^|\n)\d+\.$/);
-    if (numListMatch) return '-';
-    const formatMatch = text.match(/(^|\s)[*_]{1,2}$/);
-    if (formatMatch) return '*';
-    const quoteMatch = text.match(/(^|\n)>$/);
-    if (quoteMatch) return '>';
-    if (text.endsWith('[')) return '[';
-    if (text.endsWith('|')) return '|';
-    if (text.endsWith('!')) return '!';
-    if (text.endsWith('---')) return '---';
-    return null;
-  }, []);
-
-  // 获取光标位置
-  const getCursorPositionPosition = useCallback(
-    (cursorPosition) => {
-      const textBeforeCursor = value.substring(0, cursorPosition);
-      const lines = textBeforeCursor.split('\n');
-      const currentLine = lines.length - 1;
-      const currentColumn = lines[lines.length - 1].length;
-
-      const lineHeight = 20.8;
-      const charWidth = 7.8;
-
-      const top =
-        currentLine * lineHeight - (textareaRef.current?.scrollTop || 0);
-      const left = currentColumn * charWidth + 68;
-
-      return { top, left };
-    },
-    [value],
-  );
+  // 恢复光标位置和滚动位置（在撤销/重做后）
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (
+      textarea &&
+      (cursorPosition !== undefined || scrollPosition !== undefined)
+    ) {
+      // 恢复光标位置
+      if (cursorPosition !== undefined && cursorPosition !== null) {
+        textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+      }
+      // 恢复滚动位置
+      if (scrollPosition !== undefined && scrollPosition !== null) {
+        textarea.scrollTop = scrollPosition;
+        // 同步行号滚动
+        if (lineNumbersRef.current) {
+          lineNumbersRef.current.scrollTop = scrollPosition;
+        }
+      }
+    }
+  }, [value, cursorPosition, scrollPosition]);
 
   // 处理输入
   const handleInput = useCallback(
     (e) => {
       const newValue = e.target.value;
-      onChange(newValue);
-
-      const cursorPosition = e.target.selectionStart;
-      const textBeforeCursor = newValue.substring(0, cursorPosition);
-      const trigger = checkAutocompleteTrigger(textBeforeCursor);
-
-      if (trigger) {
-        const suggestions = markdownSuggestions[trigger];
-        if (suggestions && suggestions.items) {
-          setAutocomplete({
-            visible: true,
-            items: suggestions.items,
-            group: suggestions.group,
-            activeIndex: -1,
-            trigger,
-            position: getCursorPositionPosition(cursorPosition),
-          });
-        }
-      } else {
-        setAutocomplete((prev) => ({ ...prev, visible: false }));
-      }
+      const textarea = e.target;
+      // 保存当前光标位置和滚动位置
+      const currentCursorPos = textarea.selectionStart;
+      const currentScrollPos = textarea.scrollTop;
+      onChange(newValue, currentCursorPos, currentScrollPos);
     },
-    [onChange, checkAutocompleteTrigger, getCursorPositionPosition],
+    [onChange],
   );
 
   // 处理键盘事件
   const handleKeyDown = useCallback(
     (e) => {
-      if (!autocomplete.visible) {
-        // Tab键处理（非自动补全时）
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          const start = e.target.selectionStart;
-          const end = e.target.selectionEnd;
-          const newValue =
-            value.substring(0, start) + '  ' + value.substring(end);
-          onChange(newValue);
-          e.target.selectionStart = e.target.selectionEnd = start + 2;
-        }
-        // Ctrl+Z 撤销
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          onUndo();
-        }
-        // Ctrl+Y 或 Ctrl+Shift+Z 重做
-        if (
-          (e.ctrlKey || e.metaKey) &&
-          (e.key === 'y' || (e.key === 'z' && e.shiftKey))
-        ) {
-          e.preventDefault();
-          onRedo();
-        }
-        // Ctrl+S 保存到本地
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-          e.preventDefault();
-          localStorage.setItem('markdown-preview-content', value);
-        }
+      // Tab键处理
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = e.target.selectionStart;
+        const end = e.target.selectionEnd;
+        const newValue =
+          value.substring(0, start) + '  ' + value.substring(end);
+        onChange(newValue);
+        e.target.selectionStart = e.target.selectionEnd = start + 2;
         return;
       }
 
-      // 自动补全时的键盘处理
-      if (e.key === 'ArrowDown') {
+      // Ctrl+Z 撤销
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        setAutocomplete((prev) => ({
-          ...prev,
-          activeIndex: Math.min(prev.activeIndex + 1, prev.items.length - 1),
-        }));
-      } else if (e.key === 'ArrowUp') {
+        const textarea = e.target;
+        // 保存当前光标位置和滚动位置
+        const currentCursorPos = textarea.selectionStart;
+        const currentScrollPos = textarea.scrollTop;
+        onUndo(currentCursorPos, currentScrollPos);
+      }
+      // Ctrl+Y 或 Ctrl+Shift+Z 重做
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'y' || (e.key === 'z' && e.shiftKey))
+      ) {
         e.preventDefault();
-        setAutocomplete((prev) => ({
-          ...prev,
-          activeIndex: Math.max(prev.activeIndex - 1, 0),
-        }));
-      } else if (e.key === 'Enter') {
+        const textarea = e.target;
+        // 保存当前光标位置和滚动位置
+        const currentCursorPos = textarea.selectionStart;
+        const currentScrollPos = textarea.scrollTop;
+        onRedo(currentCursorPos, currentScrollPos);
+      }
+      // Ctrl+S 保存到本地
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (autocomplete.activeIndex >= 0) {
-          insertAutocompleteItem(autocomplete.activeIndex);
-        } else {
-          setAutocomplete((prev) => ({ ...prev, visible: false }));
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setAutocomplete((prev) => ({ ...prev, visible: false }));
-      } else if (e.key === 'Tab') {
-        e.preventDefault();
-        if (autocomplete.activeIndex >= 0) {
-          insertAutocompleteItem(autocomplete.activeIndex);
-        } else {
-          insertAutocompleteItem(0);
-        }
+        localStorage.setItem('markdown-preview-content', value);
       }
     },
-    [
-      autocomplete.visible,
-      autocomplete.activeIndex,
-      autocomplete.items,
-      onUndo,
-      onRedo,
-      onChange,
-      value,
-      insertAutocompleteItem,
-    ],
+    [onUndo, onRedo, onChange, value],
   );
 
   // 处理滚动
@@ -374,22 +233,6 @@ export default function Editor({
     },
     [onScroll],
   );
-
-  // 点击外部关闭自动补全
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        autocomplete.visible &&
-        !e.target.closest('.autocomplete') &&
-        e.target !== textareaRef.current
-      ) {
-        setAutocomplete((prev) => ({ ...prev, visible: false }));
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [autocomplete.visible]);
 
   // 粘贴图片处理
   const handlePaste = useCallback(
@@ -533,7 +376,14 @@ export default function Editor({
           {/* 撤销按钮 */}
           <button
             className="btn-icon"
-            onClick={onUndo}
+            onClick={() => {
+              const textarea = textareaRef.current;
+              if (textarea) {
+                const currentCursorPos = textarea.selectionStart;
+                const currentScrollPos = textarea.scrollTop;
+                onUndo(currentCursorPos, currentScrollPos);
+              }
+            }}
             disabled={!canUndo}
             title={t('editor.undo')}
           >
@@ -554,7 +404,14 @@ export default function Editor({
           {/* 恢复按钮 */}
           <button
             className="btn-icon"
-            onClick={onRedo}
+            onClick={() => {
+              const textarea = textareaRef.current;
+              if (textarea) {
+                const currentCursorPos = textarea.selectionStart;
+                const currentScrollPos = textarea.scrollTop;
+                onRedo(currentCursorPos, currentScrollPos);
+              }
+            }}
             disabled={!canRedo}
             title={t('editor.redo')}
           >
@@ -687,14 +544,6 @@ export default function Editor({
           onPaste={handlePaste}
           placeholder={t('editor.placeholder')}
           spellCheck={false}
-        />
-        <Autocomplete
-          visible={autocomplete.visible}
-          items={autocomplete.items}
-          group={autocomplete.group}
-          activeIndex={autocomplete.activeIndex}
-          onSelect={insertAutocompleteItem}
-          position={autocomplete.position}
         />
       </div>
     </div>
